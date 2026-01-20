@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 
@@ -32,18 +33,15 @@ export function Hero() {
             </p>
           </div>
           <div className="relative">
-            <div className="aspect-square w-full max-w-lg mx-auto rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent p-8">
-              <div className="h-full w-full rounded-xl bg-card border shadow-lg flex items-center justify-center">
-                <div className="text-center p-8">
-                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <div className="h-8 w-8 rounded-full bg-primary"></div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-4 w-32 mx-auto rounded bg-muted"></div>
-                    <div className="h-3 w-24 mx-auto rounded bg-muted"></div>
-                  </div>
-                </div>
-              </div>
+            <div className="w-full max-w-lg mx-auto rounded-2xl overflow-hidden shadow-xl">
+              <Image
+                src="/arthur.png"
+                alt="Hero image"
+                width={500}
+                height={500}
+                className="w-full h-auto object-cover"
+                priority
+              />
             </div>
           </div>
         </div>
