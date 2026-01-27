@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, Shield } from "lucide-react"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface HeaderProps {
@@ -22,6 +22,7 @@ interface HeaderProps {
 
 export function Header({ initialUser }: HeaderProps) {
   const [user, setUser] = useState<SupabaseUser | null>(initialUser)
+  const [securityGroup, setSecurityGroup] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -34,6 +35,24 @@ export function Header({ initialUser }: HeaderProps) {
 
     return () => subscription.unsubscribe()
   }, [supabase.auth])
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) {
+        setSecurityGroup(null)
+        return
+      }
+      const { data } = await supabase
+        .from("profiles")
+        .select("security_group")
+        .eq("id", user.id)
+        .single()
+      if (data) {
+        setSecurityGroup(data.security_group)
+      }
+    }
+    fetchProfile()
+  }, [user, supabase])
 
   const getUserInitials = () => {
     if (!user?.email) return "U"
@@ -78,6 +97,14 @@ export function Header({ initialUser }: HeaderProps) {
                   </div>
                 </div>
                 <DropdownMenuSeparator />
+                {securityGroup === "admin" && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin" className="w-full cursor-pointer">
+                      <Shield className="mr-2 h-4 w-4" />
+                      Administration
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                   <Link href="/profile" className="w-full cursor-pointer">
                     <User className="mr-2 h-4 w-4" />
