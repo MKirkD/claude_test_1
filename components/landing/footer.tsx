@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import { Github, Twitter, Linkedin } from "lucide-react"
 
 const footerLinks = {
@@ -39,14 +40,17 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-                A
-              </div>
-              <span className="font-semibold text-xl">Acme</span>
+            <Link href="/" className="flex items-center">
+              <Image
+                src="/West-Creek-Ranch_LOGO.svg"
+                alt="West Creek Ranch"
+                width={100}
+                height={24}
+                style={{ height: '24px', width: 'auto' }}
+              />
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
-              Building the future of collaboration, one feature at a time.
+              A collaborative destination for meaningful connections.
             </p>
             <div className="mt-4 flex gap-4">
               {socialLinks.map((link) => (
@@ -124,7 +128,7 @@ export function Footer() {
         </div>
         <div className="mt-12 border-t pt-8">
           <p className="text-sm text-muted-foreground text-center">
-            &copy; {new Date().getFullYear()} Acme Inc. All rights reserved.
+            &copy; {new Date().getFullYear()} West Creek Ranch. All rights reserved.
           </p>
         </div>
       </div>

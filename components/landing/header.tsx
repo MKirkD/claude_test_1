@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { LogOut, User, Shield } from "lucide-react"
+import Image from "next/image"
 import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface HeaderProps {
@@ -60,14 +61,18 @@ export function Header({ initialUser }: HeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b bg-background">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-              A
-            </div>
-            <span className="font-semibold text-xl">Acme</span>
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/West-Creek-Ranch_LOGO.svg"
+              alt="West Creek Ranch"
+              width={100}
+              height={24}
+              style={{ height: '24px', width: 'auto' }}
+              priority
+            />
           </Link>
           <nav className="hidden md:flex items-center gap-6">
             <Link href="/#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">

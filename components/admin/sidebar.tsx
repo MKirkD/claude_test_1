@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { CalendarDays, Building2, Users, PanelLeftClose, PanelLeft } from "lucide-react"
+import { CalendarDays, Building2, Users, BarChart3, FileText, PanelLeftClose, PanelLeft } from "lucide-react"
 
 const navItems = [
   {
@@ -22,6 +22,16 @@ const navItems = [
     label: "Manage Visitors",
     href: "/admin/visitors",
     icon: Users,
+  },
+  {
+    label: "Reports",
+    href: "/admin/reports",
+    icon: BarChart3,
+  },
+  {
+    label: "Documents",
+    href: "/admin/documents",
+    icon: FileText,
   },
 ]
 
