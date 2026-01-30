@@ -10,8 +10,7 @@ export function Hero() {
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-8 items-center">
           <div className="flex flex-col gap-6">
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-              Build faster.{" "}
-              <span className="text-primary">Ship smarter.</span>
+              Welcome to <span style={{ color: '#7A8F98' }}>Montana</span>
             </h1>
             <p className="text-lg text-white/90 max-w-xl">
               The all-in-one platform for modern teams. Streamline your workflow,
@@ -28,7 +27,7 @@ export function Hero() {
                 <Link href="#features">Learn more</Link>
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-white/90">
               No credit card required. Start building in minutes.
             </p>
           </div>
