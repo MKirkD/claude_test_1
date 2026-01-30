@@ -272,12 +272,15 @@ export default function ManageVisitorsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">
+                  Email <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="email"
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  required
                 />
               </div>
 
@@ -292,14 +295,17 @@ export default function ManageVisitorsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="company">Organization</Label>
+                <Label htmlFor="company">
+                  Organization <span className="text-destructive">*</span>
+                </Label>
                 <select
                   id="company"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   value={form.company_id}
                   onChange={(e) => setForm({ ...form, company_id: e.target.value })}
+                  required
                 >
-                  <option value="">None</option>
+                  <option value="">Select an organization</option>
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
