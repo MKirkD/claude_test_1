@@ -20,10 +20,14 @@ export default async function Home() {
         <Header initialUser={user} />
         <main className="flex-1">
           <Hero />
-          <Features />
-          <Pricing />
+          {user && (
+            <>
+              <Features />
+              <Pricing />
+            </>
+          )}
         </main>
-        <Footer />
+        <Footer isAuthenticated={!!user} />
       </div>
     </div>
   )

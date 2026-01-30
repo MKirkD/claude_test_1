@@ -35,7 +35,7 @@ export default async function AdminLayout({
           {children}
         </main>
       </div>
-      <Footer />
+      <Footer isAuthenticated />
     </div>
   )
 }

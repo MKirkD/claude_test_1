@@ -4,10 +4,10 @@ import { Github, Twitter, Linkedin } from "lucide-react"
 
 const footerLinks = {
   product: [
-    { name: "Features", href: "#features" },
-    { name: "Pricing", href: "#pricing" },
-    { name: "Changelog", href: "#" },
-    { name: "Roadmap", href: "#" },
+    { name: "Features", href: "#features", authOnly: true },
+    { name: "Pricing", href: "#pricing", authOnly: true },
+    { name: "Changelog", href: "#", authOnly: false },
+    { name: "Roadmap", href: "#", authOnly: false },
   ],
   company: [
     { name: "About", href: "#" },
@@ -34,7 +34,15 @@ const socialLinks = [
   { name: "LinkedIn", href: "#", icon: Linkedin },
 ]
 
-export function Footer() {
+interface FooterProps {
+  isAuthenticated?: boolean
+}
+
+export function Footer({ isAuthenticated = false }: FooterProps) {
+  const filteredProductLinks = footerLinks.product.filter(
+    link => !link.authOnly || isAuthenticated
+  )
+
   return (
     <footer className="border-t bg-background">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -68,7 +76,7 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">Product</h3>
             <ul className="space-y-3">
-              {footerLinks.product.map((link) => (
+              {filteredProductLinks.map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}

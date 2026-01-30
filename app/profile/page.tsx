@@ -125,7 +125,7 @@ export default function ProfilePage() {
         <div className="flex flex-1 items-center justify-center bg-background">
           <p className="text-muted-foreground">Loading...</p>
         </div>
-        <Footer />
+        <Footer isAuthenticated />
       </div>
     )
   }
