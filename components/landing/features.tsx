@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ShieldCheck, HeartPulse, Utensils, Map, Mountain, Coffee } from "lucide-react"
+import { ShieldCheck, HeartPulse, Utensils, Map, Mountain, Calendar } from "lucide-react"
 
 const features = [
   {
@@ -23,14 +23,14 @@ const features = [
     icon: Map,
   },
   {
-    title: "Activities",
-    description: "A wide range of outdoor adventures and experiences await you at the ranch.",
+    title: "Activities and Amenities",
+    description: "Explore outdoor adventures, modern comforts, and conveniences to make your stay memorable.",
     icon: Mountain,
   },
   {
-    title: "Amenities",
-    description: "Modern comforts and conveniences to make your stay relaxing and enjoyable.",
-    icon: Coffee,
+    title: "Schedule of Events",
+    description: "View the full itinerary of activities and events planned during your visit.",
+    icon: Calendar,
   },
 ]
 

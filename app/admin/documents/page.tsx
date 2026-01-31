@@ -26,6 +26,8 @@ interface Document {
   mime_type: string | null
   is_active: boolean
   created_at: string
+  document_type_id: string | null
+  document_type?: { name: string } | null
   assigned_events?: { event_id: string; event: { name: string } }[]
 }
 
@@ -34,15 +36,22 @@ interface Event {
   name: string
 }
 
+interface DocumentType {
+  id: string
+  name: string
+}
+
 const emptyForm = {
   name: "",
   description: "",
   version: "",
+  document_type_id: "",
 }
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [events, setEvents] = useState<Event[]>([])
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -62,6 +71,7 @@ export default function DocumentsPage() {
       .from("documents")
       .select(`
         *,
+        document_type:document_types(name),
         assigned_events:document_events(
           event_id,
           event:events(name)
@@ -82,10 +92,20 @@ export default function DocumentsPage() {
     if (data) setEvents(data)
   }, [supabase])
 
+  const fetchDocumentTypes = useCallback(async () => {
+    const { data } = await supabase
+      .from("document_types")
+      .select("id, name")
+      .order("name")
+
+    if (data) setDocumentTypes(data)
+  }, [supabase])
+
   useEffect(() => {
     fetchDocuments()
     fetchEvents()
-  }, [fetchDocuments, fetchEvents])
+    fetchDocumentTypes()
+  }, [fetchDocuments, fetchEvents, fetchDocumentTypes])
 
   const filteredDocuments = documents.filter((doc) => {
     const term = search.toLowerCase()
@@ -110,6 +130,7 @@ export default function DocumentsPage() {
       name: doc.name,
       description: doc.description || "",
       version: doc.version,
+      document_type_id: doc.document_type_id || "",
     })
     setSelectedFile(null)
     setMessage(null)
@@ -180,6 +201,7 @@ export default function DocumentsPage() {
         name: form.name,
         description: form.description || null,
         version: form.version,
+        document_type_id: form.document_type_id || null,
         file_path: filePath,
         file_name: fileName,
         file_size: fileSize,
@@ -322,6 +344,7 @@ export default function DocumentsPage() {
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="px-4 py-3 text-left font-medium">Name</th>
+                <th className="px-4 py-3 text-left font-medium">Type</th>
                 <th className="px-4 py-3 text-left font-medium">Version</th>
                 <th className="px-4 py-3 text-left font-medium">File</th>
                 <th className="px-4 py-3 text-left font-medium">Size</th>
@@ -335,6 +358,7 @@ export default function DocumentsPage() {
               {filteredDocuments.map((doc) => (
                 <tr key={doc.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{doc.name}</td>
+                  <td className="px-4 py-3">{doc.document_type?.name || "—"}</td>
                   <td className="px-4 py-3">{doc.version}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -432,6 +456,26 @@ export default function DocumentsPage() {
                   placeholder="e.g., Liability Waiver"
                   required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="document_type">
+                  Document Type <span className="text-destructive">*</span>
+                </Label>
+                <select
+                  id="document_type"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={form.document_type_id}
+                  onChange={(e) => setForm({ ...form, document_type_id: e.target.value })}
+                  required
+                >
+                  <option value="">Select a document type</option>
+                  {documentTypes.map((docType) => (
+                    <option key={docType.id} value={docType.id}>
+                      {docType.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-2">

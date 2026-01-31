@@ -35,14 +35,14 @@ export function Hero({ isAuthenticated = false, firstName, upcomingEvent }: Hero
             <p className="text-lg text-white/90 max-w-xl">
               {isAuthenticated && firstName && upcomingEvent ? (
                 <>
-                  Hello {firstName}, you are scheduled for visiting from{" "}
-                  {formatDate(upcomingEvent.start_date)} to{" "}
-                  {formatDate(upcomingEvent.end_date)}. We&apos;re glad you&apos;re
+                  Hello <strong>{firstName}</strong>, you are scheduled to visit with us from{" "}
+                  <strong>{formatDate(upcomingEvent.start_date)}</strong> to{" "}
+                  <strong>{formatDate(upcomingEvent.end_date)}</strong>. We&apos;re glad you&apos;re
                   coming to visit. Get additional details below.
                 </>
               ) : isAuthenticated && firstName ? (
                 <>
-                  Hello {firstName}, welcome back! Browse the information below
+                  Hello <strong>{firstName}</strong>, welcome back! Browse the information below
                   to learn more about West Creek Ranch.
                 </>
               ) : (
