@@ -13,21 +13,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, Pencil, Search, X, Upload, FileText, Trash2 } from "lucide-react"
+import { Plus, Pencil, Search, X, Upload, FileText, History, Check } from "lucide-react"
+
+interface DocumentVersion {
+  id: string
+  document_id: string
+  version_number: number
+  file_path: string
+  file_name: string
+  file_size: number | null
+  mime_type: string | null
+  is_current: boolean
+  notes: string | null
+  created_at: string
+}
 
 interface Document {
   id: string
   name: string
   description: string | null
-  version: string
-  file_path: string
-  file_name: string
-  file_size: number | null
-  mime_type: string | null
-  is_active: boolean
-  created_at: string
   document_type_id: string | null
   document_type?: { name: string } | null
+  is_active: boolean
+  created_at: string
+  current_version?: DocumentVersion | null
+  versions?: DocumentVersion[]
   assigned_events?: { event_id: string; event: { name: string } }[]
 }
 
@@ -41,11 +51,14 @@ interface DocumentType {
   name: string
 }
 
-const emptyForm = {
+const emptyDocumentForm = {
   name: "",
   description: "",
-  version: "",
   document_type_id: "",
+}
+
+const emptyVersionForm = {
+  notes: "",
 }
 
 export default function DocumentsPage() {
@@ -54,13 +67,28 @@ export default function DocumentsPage() {
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
-  const [editing, setEditing] = useState<Document | null>(null)
-  const [assigningDocument, setAssigningDocument] = useState<Document | null>(null)
-  const [form, setForm] = useState(emptyForm)
+
+  // Document dialog state
+  const [documentDialogOpen, setDocumentDialogOpen] = useState(false)
+  const [editingDocument, setEditingDocument] = useState<Document | null>(null)
+  const [documentForm, setDocumentForm] = useState(emptyDocumentForm)
+
+  // Version dialog state
+  const [versionDialogOpen, setVersionDialogOpen] = useState(false)
+  const [uploadingToDocument, setUploadingToDocument] = useState<Document | null>(null)
+  const [versionForm, setVersionForm] = useState(emptyVersionForm)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  // Version history dialog state
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null)
+  const [versions, setVersions] = useState<DocumentVersion[]>([])
+
+  // Assign events dialog state
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const [assigningDocument, setAssigningDocument] = useState<Document | null>(null)
   const [selectedEvents, setSelectedEvents] = useState<string[]>([])
+
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
@@ -79,7 +107,22 @@ export default function DocumentsPage() {
       `)
       .order("name")
 
-    if (data) setDocuments(data)
+    if (data) {
+      // Fetch current version for each document
+      const docsWithVersions = await Promise.all(
+        data.map(async (doc) => {
+          const { data: versionData } = await supabase
+            .from("document_versions")
+            .select("*")
+            .eq("document_id", doc.id)
+            .eq("is_current", true)
+            .single()
+
+          return { ...doc, current_version: versionData }
+        })
+      )
+      setDocuments(docsWithVersions)
+    }
     setLoading(false)
   }, [supabase])
 
@@ -111,35 +154,218 @@ export default function DocumentsPage() {
     const term = search.toLowerCase()
     return (
       doc.name.toLowerCase().includes(term) ||
-      doc.version.toLowerCase().includes(term) ||
-      (doc.description?.toLowerCase().includes(term) ?? false)
+      (doc.description?.toLowerCase().includes(term) ?? false) ||
+      (doc.document_type?.name?.toLowerCase().includes(term) ?? false)
     )
   })
 
-  const openCreate = () => {
-    setEditing(null)
-    setForm(emptyForm)
+  // Document CRUD
+  const openCreateDocument = () => {
+    setEditingDocument(null)
+    setDocumentForm(emptyDocumentForm)
     setSelectedFile(null)
     setMessage(null)
-    setDialogOpen(true)
+    setDocumentDialogOpen(true)
   }
 
-  const openEdit = (doc: Document) => {
-    setEditing(doc)
-    setForm({
+  const openEditDocument = (doc: Document) => {
+    setEditingDocument(doc)
+    setDocumentForm({
       name: doc.name,
       description: doc.description || "",
-      version: doc.version,
       document_type_id: doc.document_type_id || "",
     })
-    setSelectedFile(null)
     setMessage(null)
-    setDialogOpen(true)
+    setDocumentDialogOpen(true)
   }
 
+  const handleSaveDocument = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setMessage(null)
+
+    try {
+      const payload = {
+        name: documentForm.name,
+        description: documentForm.description || null,
+        document_type_id: documentForm.document_type_id || null,
+        updated_at: new Date().toISOString(),
+      }
+
+      if (editingDocument) {
+        const { error } = await supabase
+          .from("documents")
+          .update(payload)
+          .eq("id", editingDocument.id)
+
+        if (error) throw error
+        setMessage({ type: "success", text: "Document updated" })
+      } else {
+        // Creating new document - need a file for first version
+        if (!selectedFile) {
+          setMessage({ type: "error", text: "Please select a file for the first version" })
+          setSaving(false)
+          return
+        }
+
+        const { data: userData } = await supabase.auth.getUser()
+
+        // Create the document
+        const { data: newDoc, error: docError } = await supabase
+          .from("documents")
+          .insert({ ...payload, created_by: userData.user?.id })
+          .select()
+          .single()
+
+        if (docError) throw docError
+
+        // Upload the file
+        const fileExt = selectedFile.name.split(".").pop()
+        const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+        const filePath = `documents/${uniqueName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from("documents")
+          .upload(filePath, selectedFile)
+
+        if (uploadError) throw uploadError
+
+        // Create version 1
+        const { error: versionError } = await supabase
+          .from("document_versions")
+          .insert({
+            document_id: newDoc.id,
+            version_number: 1,
+            file_path: filePath,
+            file_name: selectedFile.name,
+            file_size: selectedFile.size,
+            mime_type: selectedFile.type,
+            is_current: true,
+            created_by: userData.user?.id,
+          })
+
+        if (versionError) throw versionError
+        setMessage({ type: "success", text: "Document created with version 1" })
+      }
+
+      setDocumentDialogOpen(false)
+      setSelectedFile(null)
+      fetchDocuments()
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An error occurred"
+      setMessage({ type: "error", text: errorMessage })
+    }
+
+    setSaving(false)
+  }
+
+  // Version management
+  const openUploadVersion = (doc: Document) => {
+    setUploadingToDocument(doc)
+    setVersionForm(emptyVersionForm)
+    setSelectedFile(null)
+    setMessage(null)
+    setVersionDialogOpen(true)
+  }
+
+  const handleUploadVersion = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!uploadingToDocument || !selectedFile) return
+
+    setSaving(true)
+    setMessage(null)
+
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+
+      // Get next version number
+      const { data: nextVersion } = await supabase
+        .rpc("get_next_version_number", { doc_id: uploadingToDocument.id })
+
+      // Upload the file
+      const fileExt = selectedFile.name.split(".").pop()
+      const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+      const filePath = `documents/${uniqueName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, selectedFile)
+
+      if (uploadError) throw uploadError
+
+      // Set all existing versions to not current
+      await supabase
+        .from("document_versions")
+        .update({ is_current: false })
+        .eq("document_id", uploadingToDocument.id)
+
+      // Create new version
+      const { error: versionError } = await supabase
+        .from("document_versions")
+        .insert({
+          document_id: uploadingToDocument.id,
+          version_number: nextVersion,
+          file_path: filePath,
+          file_name: selectedFile.name,
+          file_size: selectedFile.size,
+          mime_type: selectedFile.type,
+          is_current: true,
+          notes: versionForm.notes || null,
+          created_by: userData.user?.id,
+        })
+
+      if (versionError) throw versionError
+
+      setMessage({ type: "success", text: `Version ${nextVersion} uploaded` })
+      setVersionDialogOpen(false)
+      fetchDocuments()
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "An error occurred"
+      setMessage({ type: "error", text: errorMessage })
+    }
+
+    setSaving(false)
+  }
+
+  // Version history
+  const openVersionHistory = async (doc: Document) => {
+    setViewingDocument(doc)
+
+    const { data } = await supabase
+      .from("document_versions")
+      .select("*")
+      .eq("document_id", doc.id)
+      .order("version_number", { ascending: false })
+
+    if (data) setVersions(data)
+    setHistoryDialogOpen(true)
+  }
+
+  const setCurrentVersion = async (version: DocumentVersion) => {
+    setSaving(true)
+
+    try {
+      await supabase.rpc("set_current_version", { version_id: version.id })
+
+      // Refresh versions list
+      const { data } = await supabase
+        .from("document_versions")
+        .select("*")
+        .eq("document_id", version.document_id)
+        .order("version_number", { ascending: false })
+
+      if (data) setVersions(data)
+      fetchDocuments()
+    } catch (error: unknown) {
+      console.error("Error setting current version:", error)
+    }
+
+    setSaving(false)
+  }
+
+  // Event assignment
   const openAssign = async (doc: Document) => {
     setAssigningDocument(doc)
-    // Get currently assigned events
     const { data } = await supabase
       .from("document_events")
       .select("event_id")
@@ -153,102 +379,16 @@ export default function DocumentsPage() {
     setAssignDialogOpen(true)
   }
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setMessage(null)
-
-    try {
-      let filePath = editing?.file_path || ""
-      let fileName = editing?.file_name || ""
-      let fileSize = editing?.file_size || null
-      let mimeType = editing?.mime_type || null
-
-      // Upload file if selected
-      if (selectedFile) {
-        const fileExt = selectedFile.name.split(".").pop()
-        const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-        filePath = `documents/${uniqueName}`
-        fileName = selectedFile.name
-        fileSize = selectedFile.size
-        mimeType = selectedFile.type
-
-        const { error: uploadError } = await supabase.storage
-          .from("documents")
-          .upload(filePath, selectedFile)
-
-        if (uploadError) {
-          // If bucket doesn't exist, show helpful message
-          if (uploadError.message.includes("not found") || uploadError.message.includes("Bucket")) {
-            setMessage({
-              type: "error",
-              text: "Storage bucket 'documents' not found. Please create it in Supabase Storage settings."
-            })
-            setSaving(false)
-            return
-          }
-          throw uploadError
-        }
-      }
-
-      if (!filePath && !editing) {
-        setMessage({ type: "error", text: "Please select a file to upload" })
-        setSaving(false)
-        return
-      }
-
-      const payload = {
-        name: form.name,
-        description: form.description || null,
-        version: form.version,
-        document_type_id: form.document_type_id || null,
-        file_path: filePath,
-        file_name: fileName,
-        file_size: fileSize,
-        mime_type: mimeType,
-        updated_at: new Date().toISOString(),
-      }
-
-      if (editing) {
-        const { error } = await supabase
-          .from("documents")
-          .update(payload)
-          .eq("id", editing.id)
-
-        if (error) throw error
-        setMessage({ type: "success", text: "Document updated" })
-      } else {
-        const { data: userData } = await supabase.auth.getUser()
-        const { error } = await supabase
-          .from("documents")
-          .insert({ ...payload, created_by: userData.user?.id })
-
-        if (error) throw error
-        setMessage({ type: "success", text: "Document created" })
-      }
-
-      setDialogOpen(false)
-      fetchDocuments()
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An error occurred"
-      setMessage({ type: "error", text: errorMessage })
-    }
-
-    setSaving(false)
-  }
-
   const handleAssignEvents = async () => {
     if (!assigningDocument) return
     setSaving(true)
 
     try {
-      // Delete existing assignments
       await supabase
         .from("document_events")
         .delete()
         .eq("document_id", assigningDocument.id)
 
-      // Insert new assignments
       if (selectedEvents.length > 0) {
         const assignments = selectedEvents.map(eventId => ({
           document_id: assigningDocument.id,
@@ -265,8 +405,7 @@ export default function DocumentsPage() {
       setAssignDialogOpen(false)
       fetchDocuments()
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "An error occurred"
-      setMessage({ type: "error", text: errorMessage })
+      console.error("Error assigning events:", error)
     }
 
     setSaving(false)
@@ -308,9 +447,9 @@ export default function DocumentsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Documents</h1>
-        <Button onClick={openCreate}>
+        <Button onClick={openCreateDocument}>
           <Plus className="mr-2 h-4 w-4" />
-          Upload Document
+          New Document
         </Button>
       </div>
 
@@ -336,7 +475,7 @@ export default function DocumentsPage() {
         <p className="text-muted-foreground">Loading documents...</p>
       ) : filteredDocuments.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          {search ? "No documents match your search." : "No documents yet. Upload your first document."}
+          {search ? "No documents match your search." : "No documents yet. Create your first document."}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
@@ -345,12 +484,10 @@ export default function DocumentsPage() {
               <tr className="border-b bg-muted/50">
                 <th className="px-4 py-3 text-left font-medium">Name</th>
                 <th className="px-4 py-3 text-left font-medium">Type</th>
-                <th className="px-4 py-3 text-left font-medium">Version</th>
+                <th className="px-4 py-3 text-left font-medium">Current Version</th>
                 <th className="px-4 py-3 text-left font-medium">File</th>
-                <th className="px-4 py-3 text-left font-medium">Size</th>
                 <th className="px-4 py-3 text-left font-medium">Assigned Events</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Uploaded</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -359,16 +496,30 @@ export default function DocumentsPage() {
                 <tr key={doc.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{doc.name}</td>
                   <td className="px-4 py-3">{doc.document_type?.name || "—"}</td>
-                  <td className="px-4 py-3">{doc.version}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="truncate max-w-[150px]" title={doc.file_name}>
-                        {doc.file_name}
+                    {doc.current_version ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-800 text-xs font-medium">
+                        v{doc.current_version.version_number}
                       </span>
-                    </div>
+                    ) : (
+                      "—"
+                    )}
                   </td>
-                  <td className="px-4 py-3">{formatFileSize(doc.file_size)}</td>
+                  <td className="px-4 py-3">
+                    {doc.current_version ? (
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="truncate max-w-[120px]" title={doc.current_version.file_name}>
+                          {doc.current_version.file_name}
+                        </span>
+                        <span className="text-muted-foreground text-xs">
+                          ({formatFileSize(doc.current_version.file_size)})
+                        </span>
+                      </div>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     {doc.assigned_events && doc.assigned_events.length > 0 ? (
                       <span className="text-xs bg-muted px-2 py-1 rounded">
@@ -390,15 +541,23 @@ export default function DocumentsPage() {
                       {doc.is_active ? "Active" : "Inactive"}
                     </button>
                   </td>
-                  <td className="px-4 py-3">{formatDate(doc.created_at)}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => openAssign(doc)}
-                        title="Assign to events"
+                        onClick={() => openVersionHistory(doc)}
+                        title="Version history"
+                      >
+                        <History className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => openUploadVersion(doc)}
+                        title="Upload new version"
                       >
                         <Upload className="h-4 w-4" />
                       </Button>
@@ -406,8 +565,17 @@ export default function DocumentsPage() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => openEdit(doc)}
-                        title="Edit"
+                        onClick={() => openAssign(doc)}
+                        title="Assign to events"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => openEditDocument(doc)}
+                        title="Edit document"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -420,18 +588,18 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* Upload/Edit Document Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* Create/Edit Document Dialog */}
+      <Dialog open={documentDialogOpen} onOpenChange={setDocumentDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Document" : "Upload Document"}</DialogTitle>
+            <DialogTitle>{editingDocument ? "Edit Document" : "New Document"}</DialogTitle>
             <DialogDescription>
-              {editing
+              {editingDocument
                 ? "Update the document details below."
-                : "Upload a new versioned document."}
+                : "Create a new document and upload the first version."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSave}>
+          <form onSubmit={handleSaveDocument}>
             <div className="space-y-4 py-4">
               {message && (
                 <div
@@ -451,8 +619,8 @@ export default function DocumentsPage() {
                 </Label>
                 <Input
                   id="name"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  value={documentForm.name}
+                  onChange={(e) => setDocumentForm({ ...documentForm, name: e.target.value })}
                   placeholder="e.g., Liability Waiver"
                   required
                 />
@@ -465,8 +633,8 @@ export default function DocumentsPage() {
                 <select
                   id="document_type"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  value={form.document_type_id}
-                  onChange={(e) => setForm({ ...form, document_type_id: e.target.value })}
+                  value={documentForm.document_type_id}
+                  onChange={(e) => setDocumentForm({ ...documentForm, document_type_id: e.target.value })}
                   required
                 >
                   <option value="">Select a document type</option>
@@ -479,60 +647,176 @@ export default function DocumentsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="version">
-                  Version <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="version"
-                  value={form.version}
-                  onChange={(e) => setForm({ ...form, version: e.target.value })}
-                  placeholder="e.g., 1.0, 2024-01, v2"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <textarea
                   id="description"
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  value={documentForm.description}
+                  onChange={(e) => setDocumentForm({ ...documentForm, description: e.target.value })}
                   placeholder="Brief description of the document"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="file">
-                  File {!editing && <span className="text-destructive">*</span>}
-                </Label>
-                <Input
-                  id="file"
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                  required={!editing}
-                />
-                {editing && (
-                  <p className="text-xs text-muted-foreground">
-                    Current file: {editing.file_name}. Upload a new file to replace it.
-                  </p>
-                )}
-              </div>
+              {!editingDocument && (
+                <div className="space-y-2">
+                  <Label htmlFor="file">
+                    File (Version 1) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="file"
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    required
+                  />
+                </div>
+              )}
 
               <p className="text-xs text-muted-foreground">
                 <span className="text-destructive">*</span> Required field
               </p>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setDocumentDialogOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "Saving..." : editing ? "Update Document" : "Upload Document"}
+                {saving ? "Saving..." : editingDocument ? "Update Document" : "Create Document"}
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload New Version Dialog */}
+      <Dialog open={versionDialogOpen} onOpenChange={setVersionDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload New Version</DialogTitle>
+            <DialogDescription>
+              Upload a new version of: {uploadingToDocument?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUploadVersion}>
+            <div className="space-y-4 py-4">
+              {message && (
+                <div
+                  className={`rounded-md p-3 text-sm ${
+                    message.type === "success"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-destructive/10 text-destructive"
+                  }`}
+                >
+                  {message.text}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="version_file">
+                  File <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="version_file"
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Version Notes</Label>
+                <textarea
+                  id="notes"
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={versionForm.notes}
+                  onChange={(e) => setVersionForm({ ...versionForm, notes: e.target.value })}
+                  placeholder="What changed in this version?"
+                />
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                The new version will automatically become the current version.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setVersionDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving || !selectedFile}>
+                {saving ? "Uploading..." : "Upload Version"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Version History Dialog */}
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Version History</DialogTitle>
+            <DialogDescription>
+              All versions of: {viewingDocument?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {versions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No versions found.</p>
+            ) : (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {versions.map((version) => (
+                  <div
+                    key={version.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                      version.is_current ? "border-blue-300 bg-blue-50" : "border-gray-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">v{version.version_number}</span>
+                        {version.is_current && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        <span>{version.file_name}</span>
+                        <span className="mx-2">•</span>
+                        <span>{formatFileSize(version.file_size)}</span>
+                        <span className="mx-2">•</span>
+                        <span>{formatDate(version.created_at)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {version.notes && (
+                        <span className="text-xs text-muted-foreground max-w-[150px] truncate" title={version.notes}>
+                          {version.notes}
+                        </span>
+                      )}
+                      {!version.is_current && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentVersion(version)}
+                          disabled={saving}
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          Set Current
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
