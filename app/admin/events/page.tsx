@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, Pencil, Search, X } from "lucide-react"
+import { Plus, Pencil, Search, X, Users } from "lucide-react"
 
 interface Event {
   id: string
@@ -24,11 +24,24 @@ interface Event {
   location: string | null
   sponsor_company_id: string | null
   sponsor_company?: { name: string } | null
+  visitor_count?: number
 }
 
 interface Company {
   id: string
   name: string
+}
+
+interface Visitor {
+  id: string
+  first_name: string
+  last_name: string
+  email: string | null
+  company?: { name: string } | null
+}
+
+interface EventVisitor {
+  visitor_id: string
 }
 
 const emptyForm = {
@@ -51,15 +64,41 @@ export default function ManageEventsPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
+  // Visitor assignment state
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const [assigningEvent, setAssigningEvent] = useState<Event | null>(null)
+  const [allVisitors, setAllVisitors] = useState<Visitor[]>([])
+  const [selectedVisitorIds, setSelectedVisitorIds] = useState<Set<string>>(new Set())
+  const [visitorSearch, setVisitorSearch] = useState("")
+  const [savingAssignments, setSavingAssignments] = useState(false)
+
   const supabase = createClient()
 
   const fetchEvents = useCallback(async () => {
-    const { data } = await supabase
+    // Fetch events with visitor count
+    const { data: eventsData } = await supabase
       .from("events")
       .select("*, sponsor_company:companies(name)")
       .order("start_date", { ascending: false })
 
-    if (data) setEvents(data)
+    if (eventsData) {
+      // Fetch visitor counts for each event
+      const { data: countsData } = await supabase
+        .from("event_visitors")
+        .select("event_id")
+
+      const countMap: Record<string, number> = {}
+      countsData?.forEach((ev) => {
+        countMap[ev.event_id] = (countMap[ev.event_id] || 0) + 1
+      })
+
+      const eventsWithCounts = eventsData.map((event) => ({
+        ...event,
+        visitor_count: countMap[event.id] || 0,
+      }))
+
+      setEvents(eventsWithCounts)
+    }
     setLoading(false)
   }, [supabase])
 
@@ -72,10 +111,20 @@ export default function ManageEventsPage() {
     if (data) setCompanies(data)
   }, [supabase])
 
+  const fetchAllVisitors = useCallback(async () => {
+    const { data } = await supabase
+      .from("visitors")
+      .select("id, first_name, last_name, email, company:companies(name)")
+      .order("last_name")
+
+    if (data) setAllVisitors(data)
+  }, [supabase])
+
   useEffect(() => {
     fetchEvents()
     fetchCompanies()
-  }, [fetchEvents, fetchCompanies])
+    fetchAllVisitors()
+  }, [fetchEvents, fetchCompanies, fetchAllVisitors])
 
   const filteredEvents = events.filter((event) => {
     const term = search.toLowerCase()
@@ -84,6 +133,16 @@ export default function ManageEventsPage() {
       (event.location?.toLowerCase().includes(term) ?? false) ||
       (event.description?.toLowerCase().includes(term) ?? false) ||
       (event.sponsor_company?.name?.toLowerCase().includes(term) ?? false)
+    )
+  })
+
+  const filteredVisitors = allVisitors.filter((visitor) => {
+    const term = visitorSearch.toLowerCase()
+    const fullName = `${visitor.first_name} ${visitor.last_name}`.toLowerCase()
+    return (
+      fullName.includes(term) ||
+      (visitor.email?.toLowerCase().includes(term) ?? false) ||
+      (visitor.company?.name?.toLowerCase().includes(term) ?? false)
     )
   })
 
@@ -106,6 +165,87 @@ export default function ManageEventsPage() {
     })
     setMessage(null)
     setDialogOpen(true)
+  }
+
+  const openAssignVisitors = async (event: Event) => {
+    setAssigningEvent(event)
+    setVisitorSearch("")
+    setMessage(null)
+
+    // Fetch current visitors for this event
+    const { data: eventVisitors } = await supabase
+      .from("event_visitors")
+      .select("visitor_id")
+      .eq("event_id", event.id)
+
+    const currentIds = new Set<string>(
+      (eventVisitors as EventVisitor[] | null)?.map((ev) => ev.visitor_id) || []
+    )
+    setSelectedVisitorIds(currentIds)
+    setAssignDialogOpen(true)
+  }
+
+  const toggleVisitor = (visitorId: string) => {
+    setSelectedVisitorIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(visitorId)) {
+        newSet.delete(visitorId)
+      } else {
+        newSet.add(visitorId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAll = () => {
+    setSelectedVisitorIds(new Set(filteredVisitors.map((v) => v.id)))
+  }
+
+  const deselectAll = () => {
+    setSelectedVisitorIds(new Set())
+  }
+
+  const handleSaveAssignments = async () => {
+    if (!assigningEvent) return
+
+    setSavingAssignments(true)
+    setMessage(null)
+
+    // Delete all existing assignments for this event
+    const { error: deleteError } = await supabase
+      .from("event_visitors")
+      .delete()
+      .eq("event_id", assigningEvent.id)
+
+    if (deleteError) {
+      setMessage({ type: "error", text: deleteError.message })
+      setSavingAssignments(false)
+      return
+    }
+
+    // Insert new assignments
+    if (selectedVisitorIds.size > 0) {
+      const newAssignments = Array.from(selectedVisitorIds).map((visitorId) => ({
+        event_id: assigningEvent.id,
+        visitor_id: visitorId,
+        rsvp_status: "invited",
+      }))
+
+      const { error: insertError } = await supabase
+        .from("event_visitors")
+        .insert(newAssignments)
+
+      if (insertError) {
+        setMessage({ type: "error", text: insertError.message })
+        setSavingAssignments(false)
+        return
+      }
+    }
+
+    setMessage({ type: "success", text: "Visitors assigned successfully" })
+    setSavingAssignments(false)
+    setAssignDialogOpen(false)
+    fetchEvents()
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -203,6 +343,7 @@ export default function ManageEventsPage() {
                 <th className="px-4 py-3 text-left font-medium">End Date</th>
                 <th className="px-4 py-3 text-left font-medium">Location</th>
                 <th className="px-4 py-3 text-left font-medium">Organization</th>
+                <th className="px-4 py-3 text-center font-medium">Visitors</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -214,12 +355,27 @@ export default function ManageEventsPage() {
                   <td className="px-4 py-3">{formatDate(event.end_date)}</td>
                   <td className="px-4 py-3">{event.location || "—"}</td>
                   <td className="px-4 py-3">{event.sponsor_company?.name || "—"}</td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-center">
+                    <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                      {event.visitor_count || 0}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => openAssignVisitors(event)}
+                      title="Assign Visitors"
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
                       onClick={() => openEdit(event)}
+                      title="Edit Event"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -231,6 +387,7 @@ export default function ManageEventsPage() {
         </div>
       )}
 
+      {/* Create/Edit Event Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -337,6 +494,91 @@ export default function ManageEventsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Visitors Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Assign Visitors to {assigningEvent?.name}</DialogTitle>
+            <DialogDescription>
+              Select the visitors who will attend this event. {selectedVisitorIds.size} visitor(s) selected.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-hidden flex flex-col py-4">
+            {message && (
+              <div
+                className={`rounded-md p-3 text-sm mb-4 ${
+                  message.type === "success"
+                    ? "bg-green-100 text-green-800"
+                    : "bg-destructive/10 text-destructive"
+                }`}
+              >
+                {message.text}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search visitors..."
+                  value={visitorSearch}
+                  onChange={(e) => setVisitorSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={selectAll}>
+                Select All
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={deselectAll}>
+                Deselect All
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto border rounded-lg">
+              {filteredVisitors.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {visitorSearch ? "No visitors match your search." : "No visitors available."}
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {filteredVisitors.map((visitor) => (
+                    <label
+                      key={visitor.id}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedVisitorIds.has(visitor.id)}
+                        onChange={() => toggleVisitor(visitor.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">
+                          {visitor.first_name} {visitor.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {visitor.email || "No email"} {visitor.company?.name ? `• ${visitor.company.name}` : ""}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAssignDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveAssignments} disabled={savingAssignments}>
+              {savingAssignments ? "Saving..." : "Save Assignments"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
