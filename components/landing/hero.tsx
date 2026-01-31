@@ -3,11 +3,27 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, ChevronDown } from "lucide-react"
 
-interface HeroProps {
-  isAuthenticated?: boolean
+interface UpcomingEvent {
+  start_date: string
+  end_date: string
 }
 
-export function Hero({ isAuthenticated = false }: HeroProps) {
+interface HeroProps {
+  isAuthenticated?: boolean
+  firstName?: string | null
+  upcomingEvent?: UpcomingEvent | null
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString + "T00:00:00")
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
+export function Hero({ isAuthenticated = false, firstName, upcomingEvent }: HeroProps) {
   return (
     <section className="relative overflow-hidden min-h-[calc(100vh-4rem)] flex items-center">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -17,8 +33,21 @@ export function Hero({ isAuthenticated = false }: HeroProps) {
               Welcome to <span style={{ color: '#7A8F98' }}>Montana</span>
             </h1>
             <p className="text-lg text-white/90 max-w-xl">
-              The all-in-one platform for modern teams. Streamline your workflow,
-              collaborate seamlessly, and deliver exceptional results.
+              {isAuthenticated && firstName && upcomingEvent ? (
+                <>
+                  Hello {firstName}, you are scheduled for visiting from{" "}
+                  {formatDate(upcomingEvent.start_date)} to{" "}
+                  {formatDate(upcomingEvent.end_date)}. We&apos;re glad you&apos;re
+                  coming to visit. Get additional details below.
+                </>
+              ) : isAuthenticated && firstName ? (
+                <>
+                  Hello {firstName}, welcome back! Browse the information below
+                  to learn more about West Creek Ranch.
+                </>
+              ) : (
+                <>A collaborative destination for meaningful connections.</>
+              )}
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button size="lg" asChild>
