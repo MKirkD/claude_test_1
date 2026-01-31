@@ -82,11 +82,11 @@ export function Header({ initialUser }: HeaderProps) {
           </Link>
           {user && (
             <nav className="hidden md:flex items-center gap-6">
-              <Link href="/#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Features
+              <Link href="/#features" className="text-sm text-white/90 hover:text-white transition-colors">
+                Information
               </Link>
-              <Link href="/#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Pricing
+              <Link href="/#pricing" className="text-sm text-white/90 hover:text-white transition-colors">
+                XYZ
               </Link>
             </nav>
           )}

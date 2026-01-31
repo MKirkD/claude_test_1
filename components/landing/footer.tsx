@@ -4,8 +4,8 @@ import { Github, Twitter, Linkedin } from "lucide-react"
 
 const footerLinks = {
   product: [
-    { name: "Features", href: "#features", authOnly: true },
-    { name: "Pricing", href: "#pricing", authOnly: true },
+    { name: "Information", href: "#features", authOnly: true },
+    { name: "XYZ", href: "#pricing", authOnly: true },
     { name: "Changelog", href: "#", authOnly: false },
     { name: "Roadmap", href: "#", authOnly: false },
   ],
@@ -57,7 +57,7 @@ export function Footer({ isAuthenticated = false }: FooterProps) {
                 style={{ height: '24px', width: 'auto' }}
               />
             </Link>
-            <p className="mt-4 text-sm text-muted-foreground">
+            <p className="mt-4 text-sm text-white/90">
               A collaborative destination for meaningful connections.
             </p>
             <div className="mt-4 flex gap-4">
@@ -65,7 +65,7 @@ export function Footer({ isAuthenticated = false }: FooterProps) {
                 <Link
                   key={link.name}
                   href={link.href}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-white/90 hover:text-white transition-colors"
                 >
                   <span className="sr-only">{link.name}</span>
                   <link.icon className="h-5 w-5" />
@@ -74,13 +74,13 @@ export function Footer({ isAuthenticated = false }: FooterProps) {
             </div>
           </div>
           <div>
-            <h3 className="font-semibold mb-4">Product</h3>
+            <h3 className="font-semibold mb-4 text-white">Product</h3>
             <ul className="space-y-3">
               {filteredProductLinks.map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.name}
                   </Link>
@@ -89,13 +89,13 @@ export function Footer({ isAuthenticated = false }: FooterProps) {
             </ul>
           </div>
           <div>
-            <h3 className="font-semibold mb-4">Company</h3>
+            <h3 className="font-semibold mb-4 text-white">Company</h3>
             <ul className="space-y-3">
               {footerLinks.company.map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.name}
                   </Link>
@@ -104,13 +104,13 @@ export function Footer({ isAuthenticated = false }: FooterProps) {
             </ul>
           </div>
           <div>
-            <h3 className="font-semibold mb-4">Resources</h3>
+            <h3 className="font-semibold mb-4 text-white">Resources</h3>
             <ul className="space-y-3">
               {footerLinks.resources.map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.name}
                   </Link>
@@ -119,13 +119,13 @@ export function Footer({ isAuthenticated = false }: FooterProps) {
             </ul>
           </div>
           <div>
-            <h3 className="font-semibold mb-4">Legal</h3>
+            <h3 className="font-semibold mb-4 text-white">Legal</h3>
             <ul className="space-y-3">
               {footerLinks.legal.map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-white/90 hover:text-white transition-colors"
                   >
                     {link.name}
                   </Link>
@@ -135,7 +135,7 @@ export function Footer({ isAuthenticated = false }: FooterProps) {
           </div>
         </div>
         <div className="mt-12 border-t pt-8">
-          <p className="text-sm text-muted-foreground text-center">
+          <p className="text-sm text-white/90 text-center">
             &copy; {new Date().getFullYear()} West Creek Ranch. All rights reserved.
           </p>
         </div>

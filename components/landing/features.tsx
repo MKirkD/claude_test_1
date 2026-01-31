@@ -1,36 +1,36 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Zap, Shield, BarChart3, Users, Cloud, Code } from "lucide-react"
+import { ShieldCheck, HeartPulse, Utensils, Map, Mountain, Coffee } from "lucide-react"
 
 const features = [
   {
-    title: "Lightning Fast",
-    description: "Built for speed with edge computing and optimized performance at every layer.",
-    icon: Zap,
+    title: "Safety",
+    description: "Your safety is our top priority with 24/7 on-site support and emergency protocols.",
+    icon: ShieldCheck,
   },
   {
-    title: "Secure by Default",
-    description: "Enterprise-grade security with end-to-end encryption and compliance built in.",
-    icon: Shield,
+    title: "Medical",
+    description: "Access to medical resources and first aid facilities for your peace of mind.",
+    icon: HeartPulse,
   },
   {
-    title: "Real-time Analytics",
-    description: "Get instant insights with powerful dashboards and custom reporting tools.",
-    icon: BarChart3,
+    title: "Food Preferences",
+    description: "Customizable dining options to accommodate all dietary needs and preferences.",
+    icon: Utensils,
   },
   {
-    title: "Team Collaboration",
-    description: "Work together seamlessly with real-time editing and communication tools.",
-    icon: Users,
+    title: "Directions",
+    description: "Easy-to-follow guides and maps to help you navigate the ranch and surrounding areas.",
+    icon: Map,
   },
   {
-    title: "Cloud Native",
-    description: "Deploy anywhere with automatic scaling and global edge distribution.",
-    icon: Cloud,
+    title: "Activities",
+    description: "A wide range of outdoor adventures and experiences await you at the ranch.",
+    icon: Mountain,
   },
   {
-    title: "Developer First",
-    description: "APIs, SDKs, and integrations that developers love. Build anything.",
-    icon: Code,
+    title: "Amenities",
+    description: "Modern comforts and conveniences to make your stay relaxing and enjoyable.",
+    icon: Coffee,
   },
 ]
 
@@ -42,8 +42,8 @@ export function Features() {
           <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
             Everything you need to succeed
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
-            Powerful features that help your team move faster and deliver more value.
+          <p className="mt-4 text-lg text-white/90 max-w-2xl mx-auto">
+            Everything you need to know for an unforgettable stay at West Creek Ranch.
           </p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -56,7 +56,7 @@ export function Features() {
                 <CardTitle className="text-lg">{feature.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <CardDescription className="text-base">
+                <CardDescription className="text-base text-white/90">
                   {feature.description}
                 </CardDescription>
               </CardContent>
