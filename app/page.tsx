@@ -6,6 +6,7 @@ import { Pricing } from "@/components/landing/pricing"
 import { Footer } from "@/components/landing/footer"
 
 interface UpcomingEvent {
+  id: string
   start_date: string
   end_date: string
 }
@@ -41,6 +42,7 @@ export default async function Home() {
         .from("event_visitors")
         .select(`
           event:events (
+            id,
             start_date,
             end_date
           )
@@ -74,7 +76,7 @@ export default async function Home() {
           />
           {user && (
             <>
-              <Features />
+              <Features eventId={upcomingEvent?.id || null} />
               <Pricing />
             </>
           )}
