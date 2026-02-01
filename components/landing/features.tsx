@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { ShieldCheck, HeartPulse, Utensils, Map, Mountain, Calendar, Loader2, CheckCircle2 } from "lucide-react"
+import { ShieldCheck, HeartPulse, Utensils, Map, Mountain, Calendar, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 
 interface FeaturesProps {
   eventId: string | null
@@ -24,7 +24,6 @@ const featureDefinitions = [
     description: "Your safety is our top priority with 24/7 on-site support and emergency protocols.",
     icon: ShieldCheck,
     documentType: "Safety",
-    requiresConfirmation: true,
   },
   {
     key: "medical",
@@ -32,7 +31,6 @@ const featureDefinitions = [
     description: "Access to medical resources and first aid facilities for your peace of mind.",
     icon: HeartPulse,
     documentType: "Medical",
-    requiresConfirmation: false,
   },
   {
     key: "food",
@@ -40,7 +38,6 @@ const featureDefinitions = [
     description: "Customizable dining options to accommodate all dietary needs and preferences.",
     icon: Utensils,
     documentType: "Food Preferences",
-    requiresConfirmation: false,
   },
   {
     key: "directions",
@@ -48,7 +45,6 @@ const featureDefinitions = [
     description: "Easy-to-follow guides and maps to help you navigate the ranch and surrounding areas.",
     icon: Map,
     documentType: "Directions",
-    requiresConfirmation: false,
   },
   {
     key: "activities",
@@ -56,7 +52,6 @@ const featureDefinitions = [
     description: "Explore outdoor adventures, modern comforts, and conveniences to make your stay memorable.",
     icon: Mountain,
     documentType: "Activities & Amenities",
-    requiresConfirmation: false,
   },
   {
     key: "schedule",
@@ -64,7 +59,6 @@ const featureDefinitions = [
     description: "View the full itinerary of activities and events planned during your visit.",
     icon: Calendar,
     documentType: "Schedule of Events",
-    requiresConfirmation: false,
   },
 ]
 
@@ -86,8 +80,120 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
   const [confirmingDocument, setConfirmingDocument] = useState(false)
   const [confirmationSuccess, setConfirmationSuccess] = useState(false)
 
+  // Track which document types have been confirmed with current version
+  const [confirmedDocTypes, setConfirmedDocTypes] = useState<Set<string>>(new Set())
+  // Track which document types require confirmation
+  const [requiresConfirmationDocTypes, setRequiresConfirmationDocTypes] = useState<Set<string>>(new Set())
+
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+
+  // Fetch confirmation status for all document types on load
+  const fetchConfirmationStatus = useCallback(async () => {
+    if (!eventId || !visitorId) return
+
+    try {
+      // Get all document types
+      const { data: docTypes } = await supabase
+        .from("document_types")
+        .select("id, name, requires_confirmation")
+
+      if (!docTypes) return
+
+      // Get documents assigned to this event
+      const { data: docEvents } = await supabase
+        .from("document_events")
+        .select("document_id")
+        .eq("event_id", eventId)
+
+      if (!docEvents || docEvents.length === 0) return
+
+      const eventDocIds = docEvents.map((de) => de.document_id)
+
+      // Get documents with their types
+      const { data: docs } = await supabase
+        .from("documents")
+        .select("id, document_type_id")
+        .in("id", eventDocIds)
+
+      if (!docs) return
+
+      // Get current versions for these documents
+      const docIds = docs.map((d) => d.id)
+      const { data: versions } = await supabase
+        .from("document_versions")
+        .select("id, document_id")
+        .in("document_id", docIds)
+        .eq("is_current", true)
+
+      if (!versions) return
+
+      // Get visitor's confirmations
+      const versionIds = versions.map((v) => v.id)
+      const { data: confirmations } = await supabase
+        .from("visitor_confirmations")
+        .select("document_id, document_version_id")
+        .eq("visitor_id", visitorId)
+        .eq("event_id", eventId)
+        .in("document_version_id", versionIds)
+
+      if (!confirmations) return
+
+      // Build a map of document_id -> current_version_id
+      const currentVersionMap: Record<string, string> = {}
+      versions.forEach((v) => {
+        currentVersionMap[v.document_id] = v.id
+      })
+
+      // Build a map of document_id -> document_type_id
+      const docTypeMap: Record<string, string> = {}
+      docs.forEach((d) => {
+        docTypeMap[d.id] = d.document_type_id
+      })
+
+      // Build a map of document_type_id -> name and requires_confirmation
+      const typeNameMap: Record<string, string> = {}
+      const typeRequiresConfirmation: Record<string, boolean> = {}
+      docTypes.forEach((dt) => {
+        typeNameMap[dt.id] = dt.name
+        typeRequiresConfirmation[dt.id] = dt.requires_confirmation ?? false
+      })
+
+      // Find which document types require confirmation (based on assigned documents)
+      const requiresConfirmationTypes = new Set<string>()
+      docs.forEach((d) => {
+        const typeId = d.document_type_id
+        if (typeRequiresConfirmation[typeId]) {
+          const typeName = typeNameMap[typeId]
+          if (typeName) {
+            requiresConfirmationTypes.add(typeName)
+          }
+        }
+      })
+
+      // Find which document types are confirmed with current version
+      const confirmedTypes = new Set<string>()
+      confirmations?.forEach((c) => {
+        const currentVersionId = currentVersionMap[c.document_id]
+        if (c.document_version_id === currentVersionId) {
+          const typeId = docTypeMap[c.document_id]
+          const typeName = typeNameMap[typeId]
+          if (typeName) {
+            confirmedTypes.add(typeName)
+          }
+        }
+      })
+
+      setRequiresConfirmationDocTypes(requiresConfirmationTypes)
+      setConfirmedDocTypes(confirmedTypes)
+    } catch (err) {
+      console.error("Error fetching confirmation status:", err)
+    }
+  }, [eventId, visitorId, supabase])
+
+  useEffect(() => {
+    fetchConfirmationStatus()
+  }, [fetchConfirmationStatus])
 
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current
@@ -128,7 +234,7 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
     return !error && (count ?? 0) > 0
   }
 
-  const handleCardClick = async (documentType: string, title: string, needsConfirmation: boolean) => {
+  const handleCardClick = async (documentType: string, title: string) => {
     if (!eventId) {
       setError("No event assigned. Please contact an administrator.")
       setDialogOpen(true)
@@ -139,7 +245,7 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
     setError(null)
     setDocumentUrl(null)
     setDocumentName(title)
-    setRequiresConfirmation(needsConfirmation)
+    setRequiresConfirmation(false)
     setHasScrolledToBottom(false)
     setIsConfirmed(false)
     setAlreadyConfirmed(false)
@@ -149,10 +255,10 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
     setDialogOpen(true)
 
     try {
-      // First, get the document type ID
+      // First, get the document type ID and requires_confirmation setting
       const { data: docType } = await supabase
         .from("document_types")
-        .select("id")
+        .select("id, requires_confirmation")
         .eq("name", documentType)
         .single()
 
@@ -161,6 +267,10 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
         setLoading(false)
         return
       }
+
+      // Set requires confirmation from database
+      const needsConfirmation = docType.requires_confirmation ?? false
+      setRequiresConfirmation(needsConfirmation)
 
       // Get document IDs assigned to this event
       const { data: docEvents } = await supabase
@@ -320,6 +430,9 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
         setConfirmationSuccess(true)
         setAlreadyConfirmed(true)
 
+        // Refresh confirmation status to update card indicators
+        await fetchConfirmationStatus()
+
         // Check if all required documents are now confirmed
         await checkAllDocumentsConfirmed()
       }
@@ -359,9 +472,18 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
           {featureDefinitions.map((feature) => (
             <Card
               key={feature.key}
-              className="bg-background cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg"
-              onClick={() => handleCardClick(feature.documentType, feature.title, feature.requiresConfirmation)}
+              className="bg-background cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg relative"
+              onClick={() => handleCardClick(feature.documentType, feature.title)}
             >
+              {confirmedDocTypes.has(feature.documentType) ? (
+                <div className="absolute top-3 right-3">
+                  <CheckCircle2 className="h-6 w-6 text-green-500" />
+                </div>
+              ) : requiresConfirmationDocTypes.has(feature.documentType) ? (
+                <div className="absolute top-3 right-3">
+                  <AlertCircle className="h-6 w-6 text-yellow-500" />
+                </div>
+              ) : null}
               <CardHeader>
                 <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                   <feature.icon className="h-5 w-5 text-primary" />

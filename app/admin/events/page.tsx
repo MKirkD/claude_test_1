@@ -341,7 +341,6 @@ export default function ManageEventsPage() {
                 <th className="px-4 py-3 text-left font-medium">Name</th>
                 <th className="px-4 py-3 text-left font-medium">Start Date</th>
                 <th className="px-4 py-3 text-left font-medium">End Date</th>
-                <th className="px-4 py-3 text-left font-medium">Location</th>
                 <th className="px-4 py-3 text-left font-medium">Organization</th>
                 <th className="px-4 py-3 text-center font-medium">Visitors</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -353,7 +352,6 @@ export default function ManageEventsPage() {
                   <td className="px-4 py-3 font-medium">{event.name}</td>
                   <td className="px-4 py-3">{formatDate(event.start_date)}</td>
                   <td className="px-4 py-3">{formatDate(event.end_date)}</td>
-                  <td className="px-4 py-3">{event.location || "—"}</td>
                   <td className="px-4 py-3">{event.sponsor_company?.name || "—"}</td>
                   <td className="px-4 py-3 text-center">
                     <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
@@ -456,14 +454,6 @@ export default function ManageEventsPage() {
                     required
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
-                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="sponsor">Organization</Label>

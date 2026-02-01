@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, Pencil, Search, X, CalendarDays, Download, Upload, Loader2 } from "lucide-react"
+import { Plus, Pencil, Search, X, CalendarDays, Download, Upload, Loader2, Trash2 } from "lucide-react"
 import ExcelJS from "exceljs"
 
 interface UploadError {
@@ -91,6 +91,11 @@ export default function ManageVisitorsPage() {
   const [uploadResultDialogOpen, setUploadResultDialogOpen] = useState(false)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
 
+  // Selection and delete state
+  const [selectedVisitorIds, setSelectedVisitorIds] = useState<Set<string>>(new Set())
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   const supabase = createClient()
 
   const fetchVisitors = useCallback(async () => {
@@ -133,7 +138,7 @@ export default function ManageVisitorsPage() {
     const { data } = await supabase
       .from("events")
       .select("id, name, start_date, end_date, location")
-      .order("start_date", { ascending: false })
+      .order("start_date", { ascending: true })
 
     if (data) setAllEvents(data)
   }, [supabase])
@@ -289,6 +294,24 @@ export default function ManageVisitorsPage() {
       if (error) {
         setMessage({ type: "error", text: error.message })
       } else {
+        // If an event was selected, assign the visitor to it
+        if (form.event_id) {
+          const { error: eventError } = await supabase
+            .from("event_visitors")
+            .upsert({
+              visitor_id: editing.id,
+              event_id: form.event_id,
+              rsvp_status: "invited",
+            }, {
+              onConflict: "visitor_id,event_id",
+            })
+
+          if (eventError) {
+            setMessage({ type: "error", text: `Visitor updated but event assignment failed: ${eventError.message}` })
+            setSaving(false)
+            return
+          }
+        }
         setMessage({ type: "success", text: "Visitor updated" })
         setDialogOpen(false)
         fetchVisitors()
@@ -526,15 +549,33 @@ export default function ManageVisitorsPage() {
       let successCount = 0
       let totalRows = 0
 
+      // Helper to extract text from cell (handles hyperlinks, rich text, etc.)
+      const getCellText = (cell: ExcelJS.Cell): string => {
+        const value = cell.value
+        if (value === null || value === undefined) return ""
+        if (typeof value === "string") return value.trim()
+        if (typeof value === "number") return String(value)
+        // Handle hyperlink objects (e.g., email addresses)
+        if (typeof value === "object" && "text" in value) {
+          return String(value.text || "").trim()
+        }
+        // Handle rich text
+        if (typeof value === "object" && "richText" in value) {
+          const richText = value.richText as Array<{ text: string }>
+          return richText.map((r) => r.text).join("").trim()
+        }
+        return String(value).trim()
+      }
+
       // Process each data row (starting from row 2)
       for (let rowNum = 2; rowNum <= worksheet.rowCount; rowNum++) {
         const row = worksheet.getRow(rowNum)
-        const firstName = String(row.getCell(1).value || "").trim()
-        const lastName = String(row.getCell(2).value || "").trim()
-        const email = String(row.getCell(3).value || "").trim()
-        const phone = String(row.getCell(4).value || "").trim()
-        const orgName = String(row.getCell(5).value || "").trim()
-        const eventName = String(row.getCell(6).value || "").trim()
+        const firstName = getCellText(row.getCell(1))
+        const lastName = getCellText(row.getCell(2))
+        const email = getCellText(row.getCell(3))
+        const phone = getCellText(row.getCell(4))
+        const orgName = getCellText(row.getCell(5))
+        const eventName = getCellText(row.getCell(6))
 
         // Skip completely empty rows
         if (!firstName && !lastName && !email && !phone && !orgName && !eventName) {
@@ -667,61 +708,118 @@ export default function ManageVisitorsPage() {
     setUploading(false)
   }
 
+  // Selection helpers
+  const toggleVisitorSelection = (visitorId: string) => {
+    setSelectedVisitorIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(visitorId)) {
+        newSet.delete(visitorId)
+      } else {
+        newSet.add(visitorId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedVisitorIds.size === filteredVisitors.length) {
+      setSelectedVisitorIds(new Set())
+    } else {
+      setSelectedVisitorIds(new Set(filteredVisitors.map((v) => v.id)))
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedVisitorIds.size === 0) return
+
+    setDeleting(true)
+
+    const { error } = await supabase
+      .from("visitors")
+      .delete()
+      .in("id", Array.from(selectedVisitorIds))
+
+    if (error) {
+      setMessage({ type: "error", text: `Failed to delete visitors: ${error.message}` })
+    } else {
+      setMessage({ type: "success", text: `Successfully deleted ${selectedVisitorIds.size} visitor(s)` })
+      setSelectedVisitorIds(new Set())
+      fetchVisitors()
+    }
+
+    setDeleting(false)
+    setDeleteDialogOpen(false)
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Manage Visitors</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={downloadTemplate}>
-            <Download className="mr-2 h-4 w-4" />
-            Download Template
-          </Button>
-          <input
-            type="file"
-            id="visitor-upload"
-            accept=".xlsx"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          <Button
-            variant="outline"
-            onClick={() => document.getElementById("visitor-upload")?.click()}
-            disabled={uploading}
-          >
-            {uploading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Upload className="mr-2 h-4 w-4" />
-                Upload Visitors
-              </>
-            )}
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Visitor
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={downloadTemplate}>
+              <Download className="mr-2 h-4 w-4" />
+              Download Template
+            </Button>
+            <input
+              type="file"
+              id="visitor-upload"
+              accept=".xlsx"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <Button
+              variant="outline"
+              onClick={() => document.getElementById("visitor-upload")?.click()}
+              disabled={uploading}
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload Visitors
+                </>
+              )}
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Visitor
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="relative mb-4 max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search visitors..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 pr-9"
-        />
-        {search && (
-          <button
-            onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      <div className="flex items-center justify-between mb-4">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search visitors..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 pr-9"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {selectedVisitorIds.size > 0 && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setDeleteDialogOpen(true)}
           >
-            <X className="h-4 w-4" />
-          </button>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Selected ({selectedVisitorIds.size})
+          </Button>
         )}
       </div>
 
@@ -736,6 +834,14 @@ export default function ManageVisitorsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
+                <th className="px-4 py-3 text-center font-medium w-12">
+                  <input
+                    type="checkbox"
+                    checked={selectedVisitorIds.size === filteredVisitors.length && filteredVisitors.length > 0}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left font-medium">Name</th>
                 <th className="px-4 py-3 text-left font-medium">Email</th>
                 <th className="px-4 py-3 text-left font-medium">Phone</th>
@@ -747,6 +853,14 @@ export default function ManageVisitorsPage() {
             <tbody>
               {filteredVisitors.map((visitor) => (
                 <tr key={visitor.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <td className="px-4 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedVisitorIds.has(visitor.id)}
+                      onChange={() => toggleVisitorSelection(visitor.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                  </td>
                   <td className="px-4 py-3 font-medium">
                     {visitor.first_name} {visitor.last_name}
                   </td>
@@ -878,27 +992,26 @@ export default function ManageVisitorsPage() {
                 </select>
               </div>
 
-              {!editing && (
-                <div className="space-y-2">
-                  <Label htmlFor="event">
-                    Assigned Event <span className="text-destructive">*</span>
-                  </Label>
-                  <select
-                    id="event"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={form.event_id}
-                    onChange={(e) => setForm({ ...form, event_id: e.target.value })}
-                    required
-                  >
-                    <option value="">Select an event</option>
-                    {allEvents.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({formatDate(e.start_date)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="event">
+                  {editing ? "Assign to Event" : "Assigned Event"}{" "}
+                  {!editing && <span className="text-destructive">*</span>}
+                </Label>
+                <select
+                  id="event"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={form.event_id}
+                  onChange={(e) => setForm({ ...form, event_id: e.target.value })}
+                  required={!editing}
+                >
+                  <option value="">{editing ? "Select an event (optional)" : "Select an event"}</option>
+                  {allEvents.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name} ({formatDate(e.start_date)})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <p className="text-xs text-muted-foreground">
                 <span className="text-destructive">*</span> Required field
@@ -1060,6 +1173,42 @@ export default function ManageVisitorsPage() {
           <DialogFooter className="justify-center sm:justify-center">
             <Button onClick={() => setUploadResultDialogOpen(false)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <p className="text-sm text-white/90">
+              Are you sure you want to delete {selectedVisitorIds.size} visitor{selectedVisitorIds.size !== 1 ? "s" : ""}?
+              This will also remove their event assignments and document confirmations. This action cannot be undone.
+            </p>
+          </DialogHeader>
+          <DialogFooter className="justify-center sm:justify-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteSelected}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

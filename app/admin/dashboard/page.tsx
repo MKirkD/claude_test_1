@@ -43,6 +43,8 @@ export default function DashboardPage() {
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([])
   const [confirmations, setConfirmations] = useState<ConfirmationRow[]>([])
   const [search, setSearch] = useState("")
+  const [eventDateFilter, setEventDateFilter] = useState<string>("")
+  const [organizationFilter, setOrganizationFilter] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [sendingEmails, setSendingEmails] = useState(false)
@@ -326,16 +328,42 @@ export default function DashboardPage() {
     fetchMetrics(timeFilter)
   }, [timeFilter, fetchMetrics])
 
+  // Get unique event dates and organizations for filters
+  const uniqueEventDates = useMemo(() => {
+    const dates = [...new Set(confirmations.map(row => row.event_start_date))]
+    return dates.sort()
+  }, [confirmations])
+
+  const uniqueOrganizations = useMemo(() => {
+    const orgs = [...new Set(confirmations.map(row => row.organization_name))]
+    return orgs.sort()
+  }, [confirmations])
+
   const filteredConfirmations = useMemo(() => {
-    if (!search) return confirmations
-    const term = search.toLowerCase()
-    return confirmations.filter(row =>
-      row.event_name.toLowerCase().includes(term) ||
-      row.organization_name.toLowerCase().includes(term) ||
-      row.first_name.toLowerCase().includes(term) ||
-      row.last_name.toLowerCase().includes(term)
-    )
-  }, [confirmations, search])
+    return confirmations.filter(row => {
+      // Apply event date filter
+      if (eventDateFilter && row.event_start_date !== eventDateFilter) {
+        return false
+      }
+      // Apply organization filter
+      if (organizationFilter && row.organization_name !== organizationFilter) {
+        return false
+      }
+      // Apply search filter
+      if (search) {
+        const term = search.toLowerCase()
+        if (
+          !row.event_name.toLowerCase().includes(term) &&
+          !row.organization_name.toLowerCase().includes(term) &&
+          !row.first_name.toLowerCase().includes(term) &&
+          !row.last_name.toLowerCase().includes(term)
+        ) {
+          return false
+        }
+      }
+      return true
+    })
+  }, [confirmations, search, eventDateFilter, organizationFilter])
 
   // Clear selection when filtered results change
   useEffect(() => {
@@ -561,27 +589,55 @@ export default function DashboardPage() {
             </div>
           )}
 
-          <div className="relative mb-4 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-9"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+          <div className="flex flex-wrap gap-4 mb-4">
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-9"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              value={eventDateFilter}
+              onChange={(e) => setEventDateFilter(e.target.value)}
+            >
+              <option value="">All Event Dates</option>
+              {uniqueEventDates.map((date) => (
+                <option key={date} value={date}>
+                  {formatDate(date)}
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              value={organizationFilter}
+              onChange={(e) => setOrganizationFilter(e.target.value)}
+            >
+              <option value="">All Organizations</option>
+              {uniqueOrganizations.map((org) => (
+                <option key={org} value={org}>
+                  {org}
+                </option>
+              ))}
+            </select>
           </div>
 
           {filteredConfirmations.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {search ? "No results match your search." : "All visitors have confirmed their required documents."}
+              {search || eventDateFilter || organizationFilter
+                ? "No results match your filters."
+                : "All visitors have confirmed their required documents."}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
