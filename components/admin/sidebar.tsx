@@ -8,11 +8,16 @@ import { Button } from "@/components/ui/button"
 import { CalendarDays, Building2, Users, BarChart3, FileText, FileCog, PanelLeftClose, PanelLeft } from "lucide-react"
 
 const navItems = [
-  // Section 1: Organizations & Visitors
+  // Section 1: Organizations, Events & Visitors
   {
     label: "Manage Organizations",
     href: "/admin/organizations",
     icon: Building2,
+  },
+  {
+    label: "Manage Events",
+    href: "/admin/events",
+    icon: CalendarDays,
   },
   {
     label: "Manage Visitors",
@@ -20,21 +25,14 @@ const navItems = [
     icon: Users,
     sectionEnd: true,
   },
-  // Section 2: Events
-  {
-    label: "Manage Events",
-    href: "/admin/events",
-    icon: CalendarDays,
-    sectionEnd: true,
-  },
-  // Section 3: Dashboard
+  // Section 2: Dashboard
   {
     label: "Dashboard",
     href: "/admin/reports",
     icon: BarChart3,
     sectionEnd: true,
   },
-  // Section 4: Documents
+  // Section 3: Documents
   {
     label: "Documents",
     href: "/admin/documents",

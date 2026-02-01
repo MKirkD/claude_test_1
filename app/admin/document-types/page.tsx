@@ -20,11 +20,13 @@ interface DocumentType {
   id: string
   name: string
   description: string | null
+  requires_confirmation: boolean
 }
 
 const emptyForm = {
   name: "",
   description: "",
+  requires_confirmation: true,
 }
 
 export default function ManageDocumentTypesPage() {
@@ -73,6 +75,7 @@ export default function ManageDocumentTypesPage() {
     setForm({
       name: docType.name,
       description: docType.description || "",
+      requires_confirmation: docType.requires_confirmation ?? true,
     })
     setMessage(null)
     setDialogOpen(true)
@@ -86,6 +89,7 @@ export default function ManageDocumentTypesPage() {
     const payload = {
       name: form.name,
       description: form.description || null,
+      requires_confirmation: form.requires_confirmation,
     }
 
     if (editing) {
@@ -157,6 +161,7 @@ export default function ManageDocumentTypesPage() {
               <tr className="border-b bg-muted/50">
                 <th className="px-4 py-3 text-left font-medium">Name</th>
                 <th className="px-4 py-3 text-left font-medium">Description</th>
+                <th className="px-4 py-3 text-center font-medium">Confirmation Required</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -165,6 +170,7 @@ export default function ManageDocumentTypesPage() {
                 <tr key={docType.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{docType.name}</td>
                   <td className="px-4 py-3">{docType.description || "—"}</td>
+                  <td className="px-4 py-3 text-center">{docType.requires_confirmation ? "Yes" : "No"}</td>
                   <td className="px-4 py-3 text-right">
                     <Button
                       variant="ghost"
@@ -228,6 +234,22 @@ export default function ManageDocumentTypesPage() {
                   placeholder="Describe the purpose of this document type..."
                   rows={3}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="requires_confirmation">
+                  Confirmation Required <span className="text-destructive">*</span>
+                </Label>
+                <select
+                  id="requires_confirmation"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={form.requires_confirmation ? "yes" : "no"}
+                  onChange={(e) => setForm({ ...form, requires_confirmation: e.target.value === "yes" })}
+                  required
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
               </div>
 
               <p className="text-xs text-muted-foreground">
