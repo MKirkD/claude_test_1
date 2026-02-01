@@ -13,8 +13,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, Pencil, Search, X, CalendarDays, Download } from "lucide-react"
+import { Plus, Pencil, Search, X, CalendarDays, Download, Upload, Loader2 } from "lucide-react"
 import ExcelJS from "exceljs"
+
+interface UploadError {
+  row: number
+  firstName: string
+  lastName: string
+  reason: string
+}
+
+interface UploadResult {
+  total: number
+  success: number
+  errors: UploadError[]
+}
 
 interface Visitor {
   id: string
@@ -72,6 +85,11 @@ export default function ManageVisitorsPage() {
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
   const [eventSearch, setEventSearch] = useState("")
   const [savingAssignments, setSavingAssignments] = useState(false)
+
+  // Upload state
+  const [uploading, setUploading] = useState(false)
+  const [uploadResultDialogOpen, setUploadResultDialogOpen] = useState(false)
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
 
   const supabase = createClient()
 
@@ -392,17 +410,46 @@ export default function ManageVisitorsPage() {
       }
     }
 
+    // Add data validation for Phone column (column D) - format 000-000-0000
+    for (let row = 2; row <= 1000; row++) {
+      worksheet.getCell(`D${row}`).dataValidation = {
+        type: "custom",
+        allowBlank: true,
+        formulae: [`AND(LEN(D${row})=12,MID(D${row},4,1)="-",MID(D${row},8,1)="-",ISNUMBER(VALUE(SUBSTITUTE(D${row},"-",""))))`],
+        showErrorMessage: true,
+        errorTitle: "Invalid Phone Format",
+        error: "Please enter phone number in format: 000-000-0000",
+      }
+    }
+
     // Add a few empty rows to show the structure
     for (let i = 0; i < 10; i++) {
       worksheet.addRow({})
     }
 
-    // Generate filename with current date
+    // Generate filename with current date and incremented counter
     const now = new Date()
     const mm = String(now.getMonth() + 1).padStart(2, "0")
     const dd = String(now.getDate()).padStart(2, "0")
     const yyyy = now.getFullYear()
-    const filename = `WCR_Visitor_Template_${mm}${dd}${yyyy}_1.xlsx`
+    const dateKey = `${mm}${dd}${yyyy}`
+
+    // Get or initialize download counter for today
+    const storageKey = "wcr_template_download"
+    const stored = localStorage.getItem(storageKey)
+    let counter = 1
+
+    if (stored) {
+      const { date, count } = JSON.parse(stored)
+      if (date === dateKey) {
+        counter = count + 1
+      }
+    }
+
+    // Save updated counter
+    localStorage.setItem(storageKey, JSON.stringify({ date: dateKey, count: counter }))
+
+    const filename = `WCR_Visitor_Template_${dateKey}_${counter}.xlsx`
 
     // Generate and download the file
     const buffer = await workbook.xlsx.writeBuffer()
@@ -419,6 +466,207 @@ export default function ManageVisitorsPage() {
     URL.revokeObjectURL(url)
   }
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Reset file input so same file can be selected again
+    event.target.value = ""
+
+    setUploading(true)
+    setUploadResult(null)
+
+    try {
+      const buffer = await file.arrayBuffer()
+      const workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.load(buffer)
+
+      const worksheet = workbook.getWorksheet("Visitors")
+      if (!worksheet) {
+        setUploadResult({
+          total: 0,
+          success: 0,
+          errors: [{ row: 0, firstName: "", lastName: "", reason: "Invalid file format. The file must have a 'Visitors' worksheet. Please download the template and use the correct format." }],
+        })
+        setUploadResultDialogOpen(true)
+        setUploading(false)
+        return
+      }
+
+      // Validate header row
+      const headerRow = worksheet.getRow(1)
+      const expectedHeaders = ["First Name", "Last Name", "Email", "Phone", "Organization", "Event"]
+      const headers: string[] = []
+      headerRow.eachCell((cell, colNumber) => {
+        headers[colNumber - 1] = String(cell.value || "").trim()
+      })
+
+      const headersMatch = expectedHeaders.every((h, i) => headers[i] === h)
+      if (!headersMatch) {
+        setUploadResult({
+          total: 0,
+          success: 0,
+          errors: [{ row: 0, firstName: "", lastName: "", reason: "Invalid file format. Column headers do not match the expected template. Please download the template and use the correct format." }],
+        })
+        setUploadResultDialogOpen(true)
+        setUploading(false)
+        return
+      }
+
+      // Build lookup maps for organizations and events
+      const orgMap = new Map(companies.map((c) => [c.name.toLowerCase(), c.id]))
+      const eventMap = new Map(
+        allEvents.map((e) => {
+          const eventLabel = `${e.name} (${formatDate(e.start_date)})`.toLowerCase()
+          return [eventLabel, e.id]
+        })
+      )
+
+      const errors: UploadError[] = []
+      let successCount = 0
+      let totalRows = 0
+
+      // Process each data row (starting from row 2)
+      for (let rowNum = 2; rowNum <= worksheet.rowCount; rowNum++) {
+        const row = worksheet.getRow(rowNum)
+        const firstName = String(row.getCell(1).value || "").trim()
+        const lastName = String(row.getCell(2).value || "").trim()
+        const email = String(row.getCell(3).value || "").trim()
+        const phone = String(row.getCell(4).value || "").trim()
+        const orgName = String(row.getCell(5).value || "").trim()
+        const eventName = String(row.getCell(6).value || "").trim()
+
+        // Skip completely empty rows
+        if (!firstName && !lastName && !email && !phone && !orgName && !eventName) {
+          continue
+        }
+
+        totalRows++
+
+        // Validate required fields
+        const missingFields: string[] = []
+        if (!firstName) missingFields.push("First Name")
+        if (!lastName) missingFields.push("Last Name")
+        if (!email) missingFields.push("Email")
+        if (!orgName) missingFields.push("Organization")
+        if (!eventName) missingFields.push("Event")
+
+        if (missingFields.length > 0) {
+          errors.push({
+            row: rowNum,
+            firstName: firstName || "(empty)",
+            lastName: lastName || "(empty)",
+            reason: `Missing required fields: ${missingFields.join(", ")}`,
+          })
+          continue
+        }
+
+        // Lookup organization
+        const companyId = orgMap.get(orgName.toLowerCase())
+        if (!companyId) {
+          errors.push({
+            row: rowNum,
+            firstName,
+            lastName,
+            reason: `Organization "${orgName}" not found`,
+          })
+          continue
+        }
+
+        // Lookup event
+        const eventId = eventMap.get(eventName.toLowerCase())
+        if (!eventId) {
+          errors.push({
+            row: rowNum,
+            firstName,
+            lastName,
+            reason: `Event "${eventName}" not found`,
+          })
+          continue
+        }
+
+        // Validate phone format if provided
+        if (phone && !/^\d{3}-\d{3}-\d{4}$/.test(phone)) {
+          errors.push({
+            row: rowNum,
+            firstName,
+            lastName,
+            reason: `Invalid phone format "${phone}". Expected: 000-000-0000`,
+          })
+          continue
+        }
+
+        // Create visitor record
+        const { data: newVisitor, error: visitorError } = await supabase
+          .from("visitors")
+          .insert({
+            first_name: firstName,
+            last_name: lastName,
+            email: email || null,
+            phone: phone || null,
+            company_id: companyId,
+          })
+          .select("id")
+          .single()
+
+        if (visitorError) {
+          errors.push({
+            row: rowNum,
+            firstName,
+            lastName,
+            reason: `Database error: ${visitorError.message}`,
+          })
+          continue
+        }
+
+        // Create event_visitors record
+        if (newVisitor) {
+          const { error: eventError } = await supabase
+            .from("event_visitors")
+            .insert({
+              visitor_id: newVisitor.id,
+              event_id: eventId,
+              rsvp_status: "invited",
+            })
+
+          if (eventError) {
+            errors.push({
+              row: rowNum,
+              firstName,
+              lastName,
+              reason: `Visitor created but event assignment failed: ${eventError.message}`,
+            })
+            continue
+          }
+        }
+
+        successCount++
+      }
+
+      setUploadResult({
+        total: totalRows,
+        success: successCount,
+        errors,
+      })
+      setUploadResultDialogOpen(true)
+
+      // Refresh visitors list if any were added
+      if (successCount > 0) {
+        fetchVisitors()
+      }
+    } catch (err) {
+      console.error("Error processing file:", err)
+      setUploadResult({
+        total: 0,
+        success: 0,
+        errors: [{ row: 0, firstName: "", lastName: "", reason: "Failed to read the file. Please ensure it is a valid Excel (.xlsx) file." }],
+      })
+      setUploadResultDialogOpen(true)
+    }
+
+    setUploading(false)
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -427,6 +675,30 @@ export default function ManageVisitorsPage() {
           <Button variant="outline" onClick={downloadTemplate}>
             <Download className="mr-2 h-4 w-4" />
             Download Template
+          </Button>
+          <input
+            type="file"
+            id="visitor-upload"
+            accept=".xlsx"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            onClick={() => document.getElementById("visitor-upload")?.click()}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Visitors
+              </>
+            )}
           </Button>
           <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
@@ -725,6 +997,69 @@ export default function ManageVisitorsPage() {
             </Button>
             <Button onClick={handleSaveAssignments} disabled={savingAssignments}>
               {savingAssignments ? "Saving..." : "Save Assignments"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Result Dialog */}
+      <Dialog open={uploadResultDialogOpen} onOpenChange={setUploadResultDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Upload Results</DialogTitle>
+            <p className="text-sm text-white/90">
+              Summary of the visitor import process.
+            </p>
+          </DialogHeader>
+
+          {uploadResult && (
+            <div className="flex-1 overflow-hidden flex flex-col py-4">
+              {/* Summary */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center p-3 rounded-lg bg-white/10">
+                  <p className="text-2xl font-bold">{uploadResult.total}</p>
+                  <p className="text-sm text-white/90">Total Records</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-white/10">
+                  <p className="text-2xl font-bold">{uploadResult.success}</p>
+                  <p className="text-sm text-white/90">Successful</p>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-white/10">
+                  <p className="text-2xl font-bold">{uploadResult.errors.length}</p>
+                  <p className="text-sm text-white/90">Errors</p>
+                </div>
+              </div>
+
+              {/* Errors List */}
+              {uploadResult.errors.length > 0 && (
+                <div className="flex-1 overflow-hidden flex flex-col">
+                  <p className="text-sm font-medium mb-2">Errors:</p>
+                  <div className="flex-1 overflow-y-auto border rounded-lg bg-white text-black">
+                    <div className="divide-y divide-gray-200">
+                      {uploadResult.errors.map((error, index) => (
+                        <div key={index} className="p-3 text-sm">
+                          {error.row > 0 ? (
+                            <>
+                              <p className="font-medium">
+                                Row {error.row}: {error.firstName} {error.lastName}
+                              </p>
+                              <p className="text-red-600">{error.reason}</p>
+                            </>
+                          ) : (
+                            <p className="text-red-600">{error.reason}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="justify-center sm:justify-center">
+            <Button onClick={() => setUploadResultDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
