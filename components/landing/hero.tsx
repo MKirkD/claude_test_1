@@ -30,7 +30,7 @@ export function Hero({ isAuthenticated = false, firstName, upcomingEvent }: Hero
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-8 items-center">
           <div className="flex flex-col gap-6">
             <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl" style={{ marginLeft: '-0.05em' }}>
-              Welcome to <span style={{ color: '#7A8F98' }}>Montana</span>
+              Welcome to <span style={{ color: '#B8C9D0' }}>Montana</span>
             </h1>
             <p className="text-lg text-white/90 max-w-xl">
               {isAuthenticated && firstName && upcomingEvent ? (
@@ -70,7 +70,7 @@ export function Hero({ isAuthenticated = false, firstName, upcomingEvent }: Hero
       {isAuthenticated && (
         <Link
           href="#features"
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/50 hover:text-white/80 transition-colors animate-bounce"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/50 hover:text-white/80 transition-colors animate-bounce focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent rounded-full"
         >
           <ChevronDown className="h-8 w-8" />
           <span className="sr-only">Scroll to features</span>

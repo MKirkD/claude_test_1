@@ -472,8 +472,17 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
           {featureDefinitions.map((feature) => (
             <Card
               key={feature.key}
-              className="bg-background cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg relative"
+              className="bg-background cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               onClick={() => handleCardClick(feature.documentType, feature.title)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  handleCardClick(feature.documentType, feature.title)
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`View ${feature.title} document`}
             >
               {confirmedDocTypes.has(feature.documentType) ? (
                 <div className="absolute top-3 right-3">

@@ -67,11 +67,12 @@ export default async function Home() {
       <div
         className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/westcreek_stone.jpg')" }}
+        aria-hidden="true"
       />
       {/* <div className="fixed inset-0 z-0 bg-background/70" /> */}
       <div className="relative z-10 flex min-h-screen flex-col">
         <Header initialUser={user} />
-        <main className="flex-1">
+        <main id="main-content" className="flex-1">
           <Hero
             isAuthenticated={!!user}
             firstName={firstName}
