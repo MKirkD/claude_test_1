@@ -233,6 +233,67 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
     setLoading(false)
   }
 
+  const checkAllDocumentsConfirmed = async () => {
+    if (!visitorId || !eventId) return
+
+    // Get all document types that require confirmation
+    const { data: requiredTypes } = await supabase
+      .from("document_types")
+      .select("id")
+      .eq("requires_confirmation", true)
+
+    if (!requiredTypes || requiredTypes.length === 0) return
+
+    const requiredTypeIds = requiredTypes.map((t) => t.id)
+
+    // Get all document IDs assigned to this event
+    const { data: eventDocs } = await supabase
+      .from("document_events")
+      .select("document_id")
+      .eq("event_id", eventId)
+
+    if (!eventDocs || eventDocs.length === 0) return
+
+    const eventDocIds = eventDocs.map((ed) => ed.document_id)
+
+    // Get documents that require confirmation (matching type and assigned to event)
+    const { data: requiredDocs } = await supabase
+      .from("documents")
+      .select("id")
+      .in("id", eventDocIds)
+      .in("document_type_id", requiredTypeIds)
+
+    if (!requiredDocs || requiredDocs.length === 0) return
+
+    // Get the current versions of these documents
+    const docIds = requiredDocs.map((d) => d.id)
+    const { data: currentVersions } = await supabase
+      .from("document_versions")
+      .select("id, document_id")
+      .in("document_id", docIds)
+      .eq("is_current", true)
+
+    if (!currentVersions || currentVersions.length === 0) return
+
+    // Check which of these the visitor has confirmed
+    const versionIds = currentVersions.map((v) => v.id)
+    const { data: confirmations } = await supabase
+      .from("visitor_confirmations")
+      .select("document_version_id")
+      .eq("visitor_id", visitorId)
+      .eq("event_id", eventId)
+      .in("document_version_id", versionIds)
+
+    // If all required documents are confirmed, update RSVP status
+    if (confirmations && confirmations.length >= currentVersions.length) {
+      await supabase
+        .from("event_visitors")
+        .update({ rsvp_status: "confirmed" })
+        .eq("visitor_id", visitorId)
+        .eq("event_id", eventId)
+    }
+  }
+
   const handleConfirmation = async () => {
     if (!visitorId || !eventId || !currentDocumentId || !currentVersionId) {
       setError("Unable to save confirmation. Please try again.")
@@ -258,6 +319,9 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
       } else {
         setConfirmationSuccess(true)
         setAlreadyConfirmed(true)
+
+        // Check if all required documents are now confirmed
+        await checkAllDocumentsConfirmed()
       }
     } catch (err) {
       console.error("Error saving confirmation:", err)

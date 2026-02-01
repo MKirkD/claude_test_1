@@ -50,6 +50,7 @@ const emptyForm = {
   email: "",
   phone: "",
   company_id: "",
+  event_id: "",
 }
 
 export default function ManageVisitorsPage() {
@@ -273,10 +274,31 @@ export default function ManageVisitorsPage() {
         fetchVisitors()
       }
     } else {
-      const { error } = await supabase.from("visitors").insert(payload)
+      const { data: newVisitor, error } = await supabase
+        .from("visitors")
+        .insert(payload)
+        .select("id")
+        .single()
 
       if (error) {
         setMessage({ type: "error", text: error.message })
+      } else if (newVisitor && form.event_id) {
+        // Create event_visitors entry for the assigned event
+        const { error: eventError } = await supabase
+          .from("event_visitors")
+          .insert({
+            visitor_id: newVisitor.id,
+            event_id: form.event_id,
+            rsvp_status: "invited",
+          })
+
+        if (eventError) {
+          setMessage({ type: "error", text: `Visitor created but event assignment failed: ${eventError.message}` })
+        } else {
+          setMessage({ type: "success", text: "Visitor created" })
+          setDialogOpen(false)
+          fetchVisitors()
+        }
       } else {
         setMessage({ type: "success", text: "Visitor created" })
         setDialogOpen(false)
@@ -476,6 +498,28 @@ export default function ManageVisitorsPage() {
                   ))}
                 </select>
               </div>
+
+              {!editing && (
+                <div className="space-y-2">
+                  <Label htmlFor="event">
+                    Assigned Event <span className="text-destructive">*</span>
+                  </Label>
+                  <select
+                    id="event"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={form.event_id}
+                    onChange={(e) => setForm({ ...form, event_id: e.target.value })}
+                    required
+                  >
+                    <option value="">Select an event</option>
+                    {allEvents.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} ({formatDate(e.start_date)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <p className="text-xs text-muted-foreground">
                 <span className="text-destructive">*</span> Required field
