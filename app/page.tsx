@@ -17,6 +17,7 @@ export default async function Home() {
 
   let firstName: string | null = null
   let upcomingEvent: UpcomingEvent | null = null
+  let visitorId: string | null = null
 
   if (user) {
     // Get user's profile for first name
@@ -36,6 +37,8 @@ export default async function Home() {
       .single()
 
     if (visitor) {
+      visitorId = visitor.id
+
       // Get the next upcoming event for this visitor
       const today = new Date().toISOString().split("T")[0]
       const { data: eventVisitor } = await supabase
@@ -76,7 +79,7 @@ export default async function Home() {
           />
           {user && (
             <>
-              <Features eventId={upcomingEvent?.id || null} />
+              <Features eventId={upcomingEvent?.id || null} visitorId={visitorId} />
               <Pricing />
             </>
           )}

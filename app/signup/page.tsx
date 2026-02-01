@@ -97,7 +97,6 @@ export default function SignupPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Create an account</CardTitle>
-          <CardDescription>Get started with your free account</CardDescription>
         </CardHeader>
         <form onSubmit={handleSignup}>
           <CardContent className="space-y-4">
@@ -165,9 +164,14 @@ export default function SignupPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account..." : "Create account"}
-            </Button>
+            <div className="flex w-full gap-3">
+              <Button type="button" variant="outline" className="flex-1" asChild>
+                <Link href="/">Cancel</Link>
+              </Button>
+              <Button type="submit" className="flex-1" disabled={loading}>
+                {loading ? "Creating account..." : "Create account"}
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">
               Already have an account?{" "}
               <Link href="/login" className="text-primary hover:underline">

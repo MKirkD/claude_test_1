@@ -22,7 +22,7 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -31,7 +31,18 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push("/")
+      // Check if user is an admin
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("security_group")
+        .eq("id", data.user.id)
+        .single()
+
+      if (profile?.security_group === "admin") {
+        router.push("/admin")
+      } else {
+        router.push("/")
+      }
       router.refresh()
     }
   }
@@ -40,7 +51,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
+          <CardTitle className="text-2xl">Welcome</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -72,7 +83,7 @@ export default function LoginPage() {
                 required
               />
             </div>
-            <div className="text-right">
+            <div className="text-center pb-8">
               <Link
                 href="/forgot-password"
                 className="text-sm text-muted-foreground hover:text-primary"
@@ -82,9 +93,14 @@ export default function LoginPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
+            <div className="flex w-full gap-3">
+              <Button type="button" variant="outline" className="flex-1" asChild>
+                <Link href="/">Cancel</Link>
+              </Button>
+              <Button type="submit" className="flex-1" disabled={loading}>
+                {loading ? "Signing in..." : "Sign in"}
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">
               Don&apos;t have an account?{" "}
               <Link href="/signup" className="text-primary hover:underline">

@@ -8,11 +8,7 @@ import { Button } from "@/components/ui/button"
 import { CalendarDays, Building2, Users, BarChart3, FileText, FileCog, PanelLeftClose, PanelLeft } from "lucide-react"
 
 const navItems = [
-  {
-    label: "Manage Events",
-    href: "/admin/events",
-    icon: CalendarDays,
-  },
+  // Section 1: Organizations & Visitors
   {
     label: "Manage Organizations",
     href: "/admin/organizations",
@@ -22,12 +18,23 @@ const navItems = [
     label: "Manage Visitors",
     href: "/admin/visitors",
     icon: Users,
+    sectionEnd: true,
   },
+  // Section 2: Events
   {
-    label: "Reports",
+    label: "Manage Events",
+    href: "/admin/events",
+    icon: CalendarDays,
+    sectionEnd: true,
+  },
+  // Section 3: Dashboard
+  {
+    label: "Dashboard",
     href: "/admin/reports",
     icon: BarChart3,
+    sectionEnd: true,
   },
+  // Section 4: Documents
   {
     label: "Documents",
     href: "/admin/documents",
@@ -53,7 +60,7 @@ export function AdminSidebar() {
     >
       <div className="flex items-center justify-between p-4 border-b">
         {!collapsed && (
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+          <h2 className="font-semibold text-sm text-white/90 uppercase tracking-wider">
             Administration
           </h2>
         )}
@@ -70,24 +77,30 @@ export function AdminSidebar() {
           )}
         </Button>
       </div>
-      <nav className="flex-1 p-2 space-y-1">
+      <nav className="flex-1 p-2">
         {navItems.map((item) => {
           const isActive = pathname.startsWith(item.href)
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            <div key={item.href}>
+              <Link
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-white/90 hover:bg-muted hover:text-muted-foreground"
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span>{item.label}</span>}
+              </Link>
+              {item.sectionEnd && (
+                <div className="my-4 flex justify-center">
+                  <div className="w-[60%] border-t border-muted-foreground/50" />
+                </div>
               )}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
+            </div>
           )
         })}
       </nav>
