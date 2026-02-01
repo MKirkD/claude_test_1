@@ -117,7 +117,7 @@ export default function ManageEventsPage() {
       .select("id, first_name, last_name, email, company:companies(name)")
       .order("last_name")
 
-    if (data) setAllVisitors(data)
+    if (data) setAllVisitors(data as unknown as Visitor[])
   }, [supabase])
 
   useEffect(() => {

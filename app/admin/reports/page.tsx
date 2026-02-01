@@ -148,7 +148,7 @@ export default function DashboardPage() {
       id: e.id,
       name: e.name,
       start_date: e.start_date,
-      organization_name: (e.company as { name: string } | null)?.name || "—",
+      organization_name: (e.company as unknown as { name: string } | null)?.name || "—",
       assigned_count: countMap[e.id]?.assigned || 0,
       confirmed_count: countMap[e.id]?.confirmed || 0,
     }))
@@ -202,7 +202,7 @@ export default function DashboardPage() {
     // Build map of required docs per event
     const requiredDocsPerEvent: Record<string, string[]> = {}
     eventDocs?.forEach(ed => {
-      const doc = ed.documents as { id: string; document_type_id: string } | null
+      const doc = ed.documents as unknown as { id: string; document_type_id: string } | null
       if (doc && requiredTypeIds.includes(doc.document_type_id)) {
         if (!requiredDocsPerEvent[ed.event_id]) {
           requiredDocsPerEvent[ed.event_id] = []
@@ -225,7 +225,7 @@ export default function DashboardPage() {
     })
 
     // Get all visitor confirmations for these events
-    const visitorIds = eventVisitors.map(ev => (ev.visitors as { id: string })?.id).filter(Boolean)
+    const visitorIds = eventVisitors.map(ev => (ev.visitors as unknown as { id: string })?.id).filter(Boolean)
     const { data: confirmationsData } = await supabase
       .from("visitor_confirmations")
       .select("visitor_id, event_id, document_id, document_version_id")
@@ -253,7 +253,7 @@ export default function DashboardPage() {
       const event = eventMap.get(ev.event_id)
       if (!event) return
 
-      const visitor = ev.visitors as { id: string; first_name: string; last_name: string; company: { name: string } | null } | null
+      const visitor = ev.visitors as unknown as { id: string; first_name: string; last_name: string; company: { name: string } | null } | null
       if (!visitor) return
 
       const requiredDocs = requiredDocsPerEvent[ev.event_id] || []
@@ -282,7 +282,7 @@ export default function DashboardPage() {
           event_id: ev.event_id,
           event_start_date: event.start_date,
           event_name: event.name,
-          organization_name: (event.company as { name: string } | null)?.name || visitor.company?.name || "—",
+          organization_name: (event.company as unknown as { name: string } | null)?.name || (visitor.company as unknown as { name: string } | null)?.name || "—",
           visitor_id: visitor.id,
           first_name: visitor.first_name,
           last_name: visitor.last_name,

@@ -57,7 +57,7 @@ export default async function Home() {
         .single()
 
       if (eventVisitor?.event) {
-        upcomingEvent = eventVisitor.event as UpcomingEvent
+        upcomingEvent = eventVisitor.event as unknown as UpcomingEvent
       }
     }
   }

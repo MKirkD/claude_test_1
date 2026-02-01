@@ -13,7 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, Pencil, Search, X, CalendarDays } from "lucide-react"
+import { Plus, Pencil, Search, X, CalendarDays, Download } from "lucide-react"
+import ExcelJS from "exceljs"
 
 interface Visitor {
   id: string
@@ -161,6 +162,7 @@ export default function ManageVisitorsPage() {
       email: visitor.email || "",
       phone: visitor.phone || "",
       company_id: visitor.company_id || "",
+      event_id: "",
     })
     setMessage(null)
     setDialogOpen(true)
@@ -318,14 +320,119 @@ export default function ManageVisitorsPage() {
     })
   }
 
+  const downloadTemplate = async () => {
+    const workbook = new ExcelJS.Workbook()
+    workbook.creator = "West Creek Ranch"
+    workbook.created = new Date()
+
+    // Main data sheet
+    const worksheet = workbook.addWorksheet("Visitors")
+
+    // Define columns
+    worksheet.columns = [
+      { header: "First Name", key: "first_name", width: 20 },
+      { header: "Last Name", key: "last_name", width: 20 },
+      { header: "Email", key: "email", width: 30 },
+      { header: "Phone", key: "phone", width: 20 },
+      { header: "Organization", key: "organization", width: 30 },
+      { header: "Event", key: "event", width: 40 },
+    ]
+
+    // Style the header row
+    const headerRow = worksheet.getRow(1)
+    headerRow.font = { bold: true }
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    }
+
+    // Create a hidden sheet for dropdown values
+    const lookupSheet = workbook.addWorksheet("_Lookups")
+    lookupSheet.state = "veryHidden"
+
+    // Add organization names to lookup sheet
+    const orgNames = companies.map((c) => c.name)
+    orgNames.forEach((name, index) => {
+      lookupSheet.getCell(`A${index + 1}`).value = name
+    })
+
+    // Add event names with dates to lookup sheet
+    const eventNames = allEvents.map((e) => `${e.name} (${formatDate(e.start_date)})`)
+    eventNames.forEach((name, index) => {
+      lookupSheet.getCell(`B${index + 1}`).value = name
+    })
+
+    // Add data validation for Organization column (column E)
+    // Apply to rows 2 through 1000 (enough for bulk import)
+    if (orgNames.length > 0) {
+      for (let row = 2; row <= 1000; row++) {
+        worksheet.getCell(`E${row}`).dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: [`'_Lookups'!$A$1:$A$${orgNames.length}`],
+          showErrorMessage: true,
+          errorTitle: "Invalid Organization",
+          error: "Please select an organization from the dropdown list.",
+        }
+      }
+    }
+
+    // Add data validation for Event column (column F)
+    if (eventNames.length > 0) {
+      for (let row = 2; row <= 1000; row++) {
+        worksheet.getCell(`F${row}`).dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: [`'_Lookups'!$B$1:$B$${eventNames.length}`],
+          showErrorMessage: true,
+          errorTitle: "Invalid Event",
+          error: "Please select an event from the dropdown list.",
+        }
+      }
+    }
+
+    // Add a few empty rows to show the structure
+    for (let i = 0; i < 10; i++) {
+      worksheet.addRow({})
+    }
+
+    // Generate filename with current date
+    const now = new Date()
+    const mm = String(now.getMonth() + 1).padStart(2, "0")
+    const dd = String(now.getDate()).padStart(2, "0")
+    const yyyy = now.getFullYear()
+    const filename = `WCR_Visitor_Template_${mm}${dd}${yyyy}_1.xlsx`
+
+    // Generate and download the file
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Manage Visitors</h1>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Visitor
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={downloadTemplate}>
+            <Download className="mr-2 h-4 w-4" />
+            Download Template
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Visitor
+          </Button>
+        </div>
       </div>
 
       <div className="relative mb-4 max-w-sm">
