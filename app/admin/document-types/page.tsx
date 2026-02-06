@@ -52,7 +52,7 @@ export default function ManageDocumentTypesPage() {
   }, [supabase])
 
   useEffect(() => {
-    fetchDocumentTypes()
+    void fetchDocumentTypes() // eslint-disable-line react-hooks/set-state-in-effect
   }, [fetchDocumentTypes])
 
   const filteredDocumentTypes = documentTypes.filter((docType) => {

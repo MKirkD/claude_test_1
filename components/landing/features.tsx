@@ -192,7 +192,7 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
   }, [eventId, visitorId, supabase])
 
   useEffect(() => {
-    fetchConfirmationStatus()
+    void fetchConfirmationStatus() // eslint-disable-line react-hooks/set-state-in-effect
   }, [fetchConfirmationStatus])
 
   const handleScroll = useCallback(() => {
@@ -215,7 +215,7 @@ export function Features({ eventId, visitorId }: FeaturesProps) {
     if (container && documentUrl && requiresConfirmation && !isPdfDocument) {
       container.addEventListener("scroll", handleScroll)
       // Check initial state in case content is short
-      handleScroll()
+      handleScroll() // eslint-disable-line react-hooks/set-state-in-effect
       return () => container.removeEventListener("scroll", handleScroll)
     }
   }, [documentUrl, requiresConfirmation, handleScroll, documentMimeType])

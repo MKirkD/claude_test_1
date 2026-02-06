@@ -121,9 +121,9 @@ export default function ManageEventsPage() {
   }, [supabase])
 
   useEffect(() => {
-    fetchEvents()
-    fetchCompanies()
-    fetchAllVisitors()
+    void fetchEvents() // eslint-disable-line react-hooks/set-state-in-effect
+    void fetchCompanies()
+    void fetchAllVisitors()
   }, [fetchEvents, fetchCompanies, fetchAllVisitors])
 
   const filteredEvents = events.filter((event) => {
