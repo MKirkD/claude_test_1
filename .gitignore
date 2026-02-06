@@ -40,6 +40,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# public documents
+/public/*.pdf
+/public/*.docx
+
+# database schema
+supabase-production-schema.sql
+
 # Playwright
 /test-results/
 /playwright-report/
