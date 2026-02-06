@@ -144,9 +144,9 @@ export default function ManageVisitorsPage() {
   }, [supabase])
 
   useEffect(() => {
-    fetchVisitors()
-    fetchCompanies()
-    fetchAllEvents()
+    void fetchVisitors() // eslint-disable-line react-hooks/set-state-in-effect
+    void fetchCompanies()
+    void fetchAllEvents()
   }, [fetchVisitors, fetchCompanies, fetchAllEvents])
 
   const filteredVisitors = visitors.filter((visitor) => {

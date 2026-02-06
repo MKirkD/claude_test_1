@@ -30,8 +30,7 @@ export async function updateSession(request: NextRequest) {
   )
 
   // Use getClaims() for session validation - this refreshes the session if needed
-  const { data } = await supabase.auth.getClaims()
-  const user = data?.claims
+  await supabase.auth.getClaims()
 
   // NO redirect for unauthenticated users - landing page is public
   // Only refresh session if user exists, otherwise just pass through

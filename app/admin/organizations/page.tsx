@@ -65,7 +65,7 @@ export default function ManageOrganizationsPage() {
   }, [supabase])
 
   useEffect(() => {
-    fetchCompanies()
+    void fetchCompanies() // eslint-disable-line react-hooks/set-state-in-effect
   }, [fetchCompanies])
 
   const filteredCompanies = companies.filter((company) => {
